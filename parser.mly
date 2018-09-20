@@ -7,6 +7,7 @@
 %token <string> NUMBER IDENT STRING DURATION TIME REGEX
 %token EOF
 
+%left EQUAL
 %right PIPE
 %left ARROW
 %left PLUS MINUS
@@ -23,7 +24,6 @@ main: e = expr EOF { e };
 
 // deficiencies                      | example
 // ----------------------------------|-------------------------
-// assignment                        | foo = 2
 // pipe function parameters          | i forget the syntax
 // comparison operators              | a <= b
 // comments                          | // or /*
@@ -32,6 +32,7 @@ expr:
     | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
     | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_PAREN e = expr RIGHT_PAREN { Ast.Func (ps, e) }
     | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW e = expr { Ast.Func (ps, e) }
+    | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
     | n = NUMBER { Ast.Number n }
     | s = STRING { Ast.String s }
