@@ -44,7 +44,10 @@ let newline = '\r' | '\n' | "\r\n"
 let digit  = ['0'-'9']
 let digit2 = digit digit
 let digit4 = digit2 digit2
-let number = digit+
+let integer = digit+
+let frac = '.' digit*
+let exp = ['e' 'E'] ['-' '+']? digit+
+let float = digit* frac? exp?
 let ident  = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
@@ -82,11 +85,12 @@ rule token = parse
     (* some literals *)
     | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
 
-    | (number 'h') (number 'm')? (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (number 'h')? (number 'm') (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (number 'h')? (number 'm')? (number 's') { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h') (integer 'm')? (integer 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm') (integer 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')? (integer 's') { emit (DURATION (Lexing.lexeme lexbuf)) }
 
-    | number { emit (NUMBER (Lexing.lexeme lexbuf)) }
+    | integer { emit (INTEGER (Lexing.lexeme lexbuf)) }
+    | float   { emit (FLOAT (Lexing.lexeme lexbuf)) }
 
     | ident { emit (IDENT  (Lexing.lexeme lexbuf)) }
 

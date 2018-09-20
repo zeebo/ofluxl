@@ -4,7 +4,7 @@
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV UMINUS
-%token <string> NUMBER IDENT STRING DURATION TIME REGEX
+%token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX
 %token EOF
 
 %left EQUAL
@@ -34,7 +34,8 @@ expr:
     | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW e = expr { Ast.Func (ps, e) }
     | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
-    | n = NUMBER { Ast.Number n }
+    | i = INTEGER { Ast.Integer i }
+    | f = FLOAT { Ast.Float f }
     | s = STRING { Ast.String s }
     | d = DURATION { Ast.Duration d }
     | t = TIME { Ast.Time t }

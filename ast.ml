@@ -2,7 +2,8 @@ open Base
 
 type expr =
   | Ident of string
-  | Number of string
+  | Integer of string
+  | Float of string
   | Duration of string
   | Time of string
   | Regex of string
