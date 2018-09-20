@@ -1,0 +1,14 @@
+(ocamllex
+    (modules lexer)
+)
+
+(menhir
+    (modules parser)
+    (flags --unused-tokens --explain)
+)
+
+(executable
+    (name ofluxl)
+    (preprocess (pps js_of_ocaml-ppx))
+    (libraries base stdio menhirLib js_of_ocaml)
+)
