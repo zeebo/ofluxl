@@ -12,6 +12,8 @@ let emit token =
     | ARROW
     | ARROW_LEFT_BRACE
     | ARROW_LEFT_PAREN
+    | EQUAL
+    | COMP "=~" (* maybe this should be any comparison *)
     | COLON -> can_regex := true
     | _     -> can_regex := false
     end;
@@ -35,7 +37,7 @@ let grab_string () =
   str
 }
 
-let white   = [' ' '\t']
+let white = ' ' | '\t'
 let newline = '\r' | '\n' | "\r\n"
 
 let digit  = ['0'-'9']
@@ -48,14 +50,21 @@ let float = digit* frac? exp?
 let ident  = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
+    (* whitespace *)
     | white+  { token lexbuf }
     | newline { Lexing.new_line lexbuf; token lexbuf }
 
-    (* symbols *)
+    (* arrow symbols *)
     | ')' white* "=>" white* '{' { emit ARROW_LEFT_BRACE }
     | ')' white* "=>" white* '(' { emit ARROW_LEFT_PAREN }
     | ')' white* "=>"            { emit ARROW }
 
+    (* comparisons *)
+    | "==" | "!=" | "<=" | ">=" | '<' | '>' | "=~" { emit (COMP (Lexing.lexeme lexbuf))  }
+    | ['a''A'] ['n''N'] ['d''D'] { emit AND }
+    | ['o''O'] ['r''R'] { emit OR }
+
+    (* symbols *)
     | '.'  { emit DOT }
     | ','  { emit COMMA }
     | '('  { emit LEFT_PAREN }
@@ -66,6 +75,8 @@ rule token = parse
     | '}'  { emit RIGHT_BRACE }
     | '='  { emit EQUAL }
     | ':'  { emit COLON }
+
+    (* operators *)
     | '+'  { emit PLUS }
     | '-'  { emit MINUS }
     | '*'  { emit TIMES }
@@ -79,33 +90,34 @@ rule token = parse
             emit (REGEX regex)
           }
 
-    (* some literals *)
-    | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
+    (* return is weird *)
+    | "return" { RETURN }
 
-    | (integer 'h') (integer 'm')? (integer 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm') (integer 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')? (integer 's') { emit (DURATION (Lexing.lexeme lexbuf)) }
-
+    (* literals *)
+    | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 ('.' digit+)? 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
+    | (integer 'h')  (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')  (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')? (integer 's')  (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")  (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")  (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")  { emit (DURATION (Lexing.lexeme lexbuf)) }
     | integer { emit (INTEGER (Lexing.lexeme lexbuf)) }
     | float   { emit (FLOAT (Lexing.lexeme lexbuf)) }
-
     | ident { emit (IDENT (Lexing.lexeme lexbuf)) }
-
     | '\'' { let start = Lexing.lexeme_start_p lexbuf in
              let char = read_char lexbuf in
              lexbuf.lex_start_p <- start;
              emit (CHAR char)
            }
-
     | '"' { let start = Lexing.lexeme_start_p lexbuf in
             let string = read_string lexbuf in
             lexbuf.lex_start_p <- start;
             emit (STRING string)
           }
 
-    (* eof *)
-    | eof     { EOF }
-    | _       { lexing_error lexbuf }
+    (* everything else *)
+    | eof      { EOF }
+    | _        { lexing_error lexbuf }
 
 and read_string = parse
     | '"'                       { grab_string () }
@@ -124,8 +136,11 @@ and read_regex = parse
     | eof                       { raise (Error ("Unclosed string literal", lexbuf.Lexing.lex_curr_p)) }
 
 and read_char = parse
-    | "\\t'" { '\t' }
-    | "\\n'" { '\n' }
-    | _ '\'' { (Lexing.lexeme lexbuf).[0] }
-    | _      { lexing_error lexbuf }
-    | eof    { raise (Error ("Unclosed character literal", lexbuf.Lexing.lex_curr_p)) }
+    | "\\t'"  { '\t' }
+    | "\\n'"  { '\n' }
+    | "\\r'"  { '\r' }
+    | "\\\\'" { '\\' }
+    | "\\''"  { '\'' }
+    | _ '\''  { Lexing.lexeme_char lexbuf 0 }
+    | _       { lexing_error lexbuf }
+    | eof     { raise (Error ("Unclosed character literal", lexbuf.Lexing.lex_curr_p)) }

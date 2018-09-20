@@ -15,15 +15,11 @@ let print = function
 
 (* pick one of these two *)
 
-
 let () =
   parse_stdin () |> print
 
-
-(*
-let () =
-  Js.export "ofluxl"
+(* let () =
+   Js.export "ofluxl"
     (object%js
       method parse str = str |> Js.to_string |> parse_str |> print end
-    )
-*)
+    ) *)

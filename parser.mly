@@ -4,18 +4,23 @@
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV UMINUS
-%token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX
+%token AND OR
+%token RETURN
+%token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX COMP
 %token <char> CHAR
 %token EOF
 
 %left EQUAL
 %right PIPE
 %left ARROW
+%left AND OR
+%left COMP
 %left PLUS MINUS
 %left TIMES DIV
 %left LEFT_BRACKET DOT
 %nonassoc UMINUS
 %left LEFT_PAREN
+%left RETURN
 
 %start <Ast.expr> main
 
@@ -54,6 +59,10 @@ expr:
     | e = expr DOT i = IDENT { Ast.Select (e, i) }
     | e = expr LEFT_BRACKET i = expr RIGHT_BRACKET { Ast.Index (e, i) }
     | LEFT_PAREN e = expr RIGHT_PAREN { e }
+    | e1 = expr c = COMP e2 = expr { Ast.Comp (e1, c, e2) }
+    | e1 = expr AND e2 = expr { Ast.And (e1, e2) }
+    | e1 = expr OR e2 = expr { Ast.Or (e1, e2) }
+    | RETURN e = expr { Ast.Return e }
     ;
 
 colon_arg:     n = IDENT COLON e = expr { (n, e) };

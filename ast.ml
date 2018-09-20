@@ -22,4 +22,8 @@ type expr =
   | Select of expr * string
   | Index of expr * expr
   | Assign of string * expr
+  | Comp of expr * string * expr
+  | And of expr * expr
+  | Or of expr * expr
+  | Return of expr
 [@@deriving sexp]
