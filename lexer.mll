@@ -31,8 +31,11 @@ let unquote lexeme =
 let white   = [' ' '\t']
 let newline = '\r' | '\n' | "\r\n"
 
-let number  = ['0'-'9']+
-let ident   = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
+let digit  = ['0'-'9']
+let digit2 = digit digit
+let digit4 = digit2 digit2
+let number = digit+
+let ident  = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
     | white+  { token lexbuf }
@@ -60,12 +63,16 @@ rule token = parse
     | "|>" { emit PIPE }
 
     (* some literals *)
+    | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
+
     | (number 'h') (number 'm')? (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
     | (number 'h')? (number 'm') (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
     | (number 'h')? (number 'm')? (number 's') { emit (DURATION (Lexing.lexeme lexbuf)) }
 
     | number  { emit (NUMBER (Lexing.lexeme lexbuf)) }
+
     | ident   { emit (IDENT  (Lexing.lexeme lexbuf)) }
+
     | '"'     { let start = Lexing.lexeme_start_p lexbuf in
                 let string = read_string lexbuf in
                 lexbuf.lex_start_p <- start;

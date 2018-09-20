@@ -4,6 +4,7 @@ type expr =
   | Ident of string
   | Number of string
   | Duration of string
+  | Time of string
   | Plus of expr * expr
   | Minus of expr * expr
   | Times of expr * expr

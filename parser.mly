@@ -4,7 +4,7 @@
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV UMINUS
-%token <string> NUMBER IDENT STRING DURATION
+%token <string> NUMBER IDENT STRING DURATION TIME
 %token EOF
 
 %left PIPE
@@ -26,7 +26,6 @@ main: e = expr EOF { e };
 // assignment                        | foo = 2
 // pipe function parameters          | i forget the syntax
 // regex literals                    | /foo bar/
-// time literals                     | 2018-05-22T19:53:26Z
 // comparison operators              | a <= b
 
 expr:
@@ -37,6 +36,7 @@ expr:
     | n = NUMBER { Ast.Number n }
     | s = STRING { Ast.String s }
     | d = DURATION { Ast.Duration d }
+    | t = TIME { Ast.Time t }
     | e1 = expr PLUS  e2 = expr { Ast.Plus (e1, e2) }
     | e1 = expr MINUS e2 = expr { Ast.Minus (e1, e2) }
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
