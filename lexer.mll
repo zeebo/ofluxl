@@ -39,24 +39,31 @@ rule token = parse
     | newline { Lexing.new_line lexbuf; token lexbuf }
 
     (* symbols *)
-    | '.'     { emit DOT }
-    | ','     { emit COMMA }
-    | '('     { emit LEFT_PAREN }
-    | ')'     { emit RIGHT_PAREN }
-    | '['     { emit LEFT_BRACKET }
-    | ']'     { emit RIGHT_BRACKET }
-    | '{'     { emit LEFT_BRACE }
-    | '}'     { emit RIGHT_BRACE }
-    | "=>"    { emit ARROW }
-    | '='     { emit EQUAL }
-    | ':'     { emit COLON }
-    | '+'     { emit PLUS }
-    | '-'     { emit MINUS }
-    | '*'     { emit TIMES }
-    | '/'     { emit DIV }
-    | "|>"    { emit PIPE }
+    | ')' white* "=>" white* '{' { emit ARROW_LEFT_BRACE }
+    | ')' white* "=>" white* '(' { emit ARROW_LEFT_PAREN }
+    | ')' white* "=>"            { emit ARROW }
+
+    | '.'  { emit DOT }
+    | ','  { emit COMMA }
+    | '('  { emit LEFT_PAREN }
+    | ')'  { emit RIGHT_PAREN }
+    | '['  { emit LEFT_BRACKET }
+    | ']'  { emit RIGHT_BRACKET }
+    | '{'  { emit LEFT_BRACE }
+    | '}'  { emit RIGHT_BRACE }
+    | '='  { emit EQUAL }
+    | ':'  { emit COLON }
+    | '+'  { emit PLUS }
+    | '-'  { emit MINUS }
+    | '*'  { emit TIMES }
+    | '/'  { emit DIV }
+    | "|>" { emit PIPE }
 
     (* some literals *)
+    | (number 'h') (number 'm')? (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (number 'h')? (number 'm') (number 's')? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (number 'h')? (number 'm')? (number 's') { emit (DURATION (Lexing.lexeme lexbuf)) }
+
     | number  { emit (NUMBER (Lexing.lexeme lexbuf)) }
     | ident   { emit (IDENT  (Lexing.lexeme lexbuf)) }
     | '"'     { let start = Lexing.lexeme_start_p lexbuf in

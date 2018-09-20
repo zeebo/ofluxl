@@ -10,15 +10,15 @@ let parse_stdin () = Lexing.from_channel Stdio.stdin |> parse
 let parse_str str = Lexing.from_string str |> parse
 
 let print = function
-  | Ok expr   -> expr |> Ast.sexp_of_expr |> Sexp.to_string_hum |> print_endline
+  | Ok expr -> expr |> Ast.sexp_of_expr |> Sexp.to_string_hum |> print_endline
   | Error err -> err |> Err.print_error
 
 (* pick one of these two *)
 
-(*
+
 let () =
   parse_stdin () |> print
-*)
+
 
 (*
 let () =

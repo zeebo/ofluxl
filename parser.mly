@@ -1,12 +1,14 @@
 %token DOT COMMA ARROW COLON PIPE
+%token ARROW_LEFT_BRACE ARROW_LEFT_PAREN
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV UMINUS
-%token <string> NUMBER IDENT STRING
+%token <string> NUMBER IDENT STRING DURATION
 %token EOF
 
 %left PIPE
+%left ARROW
 %left PLUS MINUS
 %left TIMES DIV
 %left LEFT_BRACKET DOT
@@ -22,21 +24,19 @@ main: e = expr EOF { e };
 // deficiencies                      | example
 // ----------------------------------|-------------------------
 // assignment                        | foo = 2
-// parenthesized funcs with 1 param  | (a) => { a * a }
-// non-braced funcs                  | (a, b) => a * b
-// records returned from funcs       | (a, b) => ({a=a, b=b})
 // pipe function parameters          | i forget the syntax
 // regex literals                    | /foo bar/
-// duration literals                 | 10m
 // time literals                     | 2018-05-22T19:53:26Z
 // comparison operators              | a <= b
 
 expr:
-    | p = IDENT ARROW LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func ([p], e) }
-    | LEFT_PAREN p = IDENT COMMA ps = separated_list(COMMA, IDENT) RIGHT_PAREN ARROW LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (p :: ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_PAREN e = expr RIGHT_PAREN { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW e = expr { Ast.Func (ps, e) }
     | i = IDENT { Ast.Ident i }
     | n = NUMBER { Ast.Number n }
     | s = STRING { Ast.String s }
+    | d = DURATION { Ast.Duration d }
     | e1 = expr PLUS  e2 = expr { Ast.Plus (e1, e2) }
     | e1 = expr MINUS e2 = expr { Ast.Minus (e1, e2) }
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
