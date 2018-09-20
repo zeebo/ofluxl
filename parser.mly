@@ -27,7 +27,6 @@ main: e = expr EOF { e };
 // records returned from funcs       | (a, b) => ({a=a, b=b})
 // pipe function parameters          | i forget the syntax
 
-
 expr:
     | p = IDENT ARROW LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func ([p], e) }
     | LEFT_PAREN p = IDENT COMMA ps = separated_list(COMMA, IDENT) RIGHT_PAREN ARROW LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (p :: ps, e) }
