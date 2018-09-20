@@ -33,9 +33,6 @@ let grab_string () =
   let str = Buffer.contents string_buffer in
   Buffer.reset string_buffer;
   str
-
-let unquote lexeme =
-    String.drop_prefix (String.drop_suffix lexeme 1) 1
 }
 
 let white   = [' ' '\t']
@@ -92,7 +89,13 @@ rule token = parse
     | integer { emit (INTEGER (Lexing.lexeme lexbuf)) }
     | float   { emit (FLOAT (Lexing.lexeme lexbuf)) }
 
-    | ident { emit (IDENT  (Lexing.lexeme lexbuf)) }
+    | ident { emit (IDENT (Lexing.lexeme lexbuf)) }
+
+    | '\'' { let start = Lexing.lexeme_start_p lexbuf in
+             let char = read_char lexbuf in
+             lexbuf.lex_start_p <- start;
+             emit (CHAR char)
+           }
 
     | '"' { let start = Lexing.lexeme_start_p lexbuf in
             let string = read_string lexbuf in
@@ -119,3 +122,10 @@ and read_regex = parse
     | [^ '\r' '\n' '/' '\\' ]+  { add_lexeme lexbuf; read_regex lexbuf }
     | _                         { lexing_error lexbuf }
     | eof                       { raise (Error ("Unclosed string literal", lexbuf.Lexing.lex_curr_p)) }
+
+and read_char = parse
+    | "\\t'" { '\t' }
+    | "\\n'" { '\n' }
+    | _ '\'' { (Lexing.lexeme lexbuf).[0] }
+    | _      { lexing_error lexbuf }
+    | eof    { raise (Error ("Unclosed character literal", lexbuf.Lexing.lex_curr_p)) }

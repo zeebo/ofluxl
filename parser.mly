@@ -5,6 +5,7 @@
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV UMINUS
 %token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX
+%token <char> CHAR
 %token EOF
 
 %left EQUAL
@@ -40,6 +41,7 @@ expr:
     | d = DURATION { Ast.Duration d }
     | t = TIME { Ast.Time t }
     | r = REGEX { Ast.Regex r }
+    | c = CHAR { Ast.Char c }
     | e1 = expr PLUS  e2 = expr { Ast.Plus (e1, e2) }
     | e1 = expr MINUS e2 = expr { Ast.Minus (e1, e2) }
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }

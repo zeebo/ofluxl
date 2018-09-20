@@ -7,6 +7,7 @@ type expr =
   | Duration of string
   | Time of string
   | Regex of string
+  | Char of char
   | Plus of expr * expr
   | Minus of expr * expr
   | Times of expr * expr
