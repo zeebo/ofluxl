@@ -5,6 +5,7 @@ type expr =
   | Number of string
   | Duration of string
   | Time of string
+  | Regex of string
   | Plus of expr * expr
   | Minus of expr * expr
   | Times of expr * expr
