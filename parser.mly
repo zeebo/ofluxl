@@ -7,7 +7,7 @@
 %token <string> NUMBER IDENT STRING DURATION TIME REGEX
 %token EOF
 
-%left PIPE
+%right PIPE
 %left ARROW
 %left PLUS MINUS
 %left TIMES DIV
