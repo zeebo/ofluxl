@@ -26,6 +26,10 @@ main: e = expr EOF { e };
 // non-braced funcs                  | (a, b) => a * b
 // records returned from funcs       | (a, b) => ({a=a, b=b})
 // pipe function parameters          | i forget the syntax
+// regex literals                    | /foo bar/
+// duration literals                 | 10m
+// time literals                     | 2018-05-22T19:53:26Z
+// comparison operators              | a <= b
 
 expr:
     | p = IDENT ARROW LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func ([p], e) }
@@ -38,14 +42,13 @@ expr:
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
     | MINUS e = expr %prec UMINUS { Ast.Uminus e }
-    | e = expr LEFT_PAREN args = separated_list(COMMA, call_arg) RIGHT_PAREN { Ast.Call (e, args) }
+    | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | e1 = expr PIPE e2 = expr  { Ast.Pipe (e1, e2) }
     | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
-    | LEFT_BRACE vs = separated_list(COMMA, record_value) RIGHT_BRACE { Ast.Record vs }
+    | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
     | e = expr DOT i = IDENT { Ast.Select (e, i) }
     | e = expr LEFT_BRACKET i = expr RIGHT_BRACKET { Ast.Index (e, i) }
     | LEFT_PAREN e = expr RIGHT_PAREN { e }
     ;
 
-call_arg:     n = IDENT COLON e = expr { (n, e) };
-record_value: n = IDENT EQUAL e = expr { (n, e) };
+colon_arg:     n = IDENT COLON e = expr { (n, e) };
