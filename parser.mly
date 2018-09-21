@@ -1,5 +1,5 @@
-%token DOT COMMA ARROW COLON PIPE
-%token ARROW_LEFT_BRACE ARROW_LEFT_PAREN
+%token DOT COMMA COLON PIPE
+%token RIGHT_PAREN_ARROW RIGHT_PAREN_ARROW_LEFT_BRACE
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
@@ -12,13 +12,13 @@
 
 %left EQUAL
 %right PIPE
-%left ARROW
 %left AND OR
 %left COMP
 %left PLUS MINUS
 %left TIMES DIV
 %left LEFT_BRACKET DOT
 %nonassoc UMINUS
+%left RIGHT_PAREN_ARROW
 %left LEFT_PAREN
 %left RETURN
 
@@ -31,13 +31,11 @@ main: e = expr EOF { e };
 // deficiencies                      | example
 // ----------------------------------|-------------------------
 // pipe function parameters          | i forget the syntax
-// comparison operators              | a <= b
 // comments                          | // or /*
 
 expr:
-    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
-    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW_LEFT_PAREN e = expr RIGHT_PAREN { Ast.Func (ps, e) }
-    | LEFT_PAREN ps = separated_list(COMMA, IDENT) ARROW e = expr { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, IDENT) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, IDENT) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
     | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }

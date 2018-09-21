@@ -9,9 +9,7 @@ let can_regex = ref true
 let emit token =
     begin match token with
     | LEFT_PAREN
-    | ARROW
-    | ARROW_LEFT_BRACE
-    | ARROW_LEFT_PAREN
+    | RIGHT_PAREN_ARROW
     | EQUAL
     | COMP "=~" (* maybe this should be any comparison *)
     | COLON -> can_regex := true
@@ -55,9 +53,8 @@ rule token = parse
     | newline { Lexing.new_line lexbuf; token lexbuf }
 
     (* arrow symbols *)
-    | ')' white* "=>" white* '{' { emit ARROW_LEFT_BRACE }
-    | ')' white* "=>" white* '(' { emit ARROW_LEFT_PAREN }
-    | ')' white* "=>"            { emit ARROW }
+    | ')' white* "=>" white* '{' { emit RIGHT_PAREN_ARROW_LEFT_BRACE }
+    | ')' white* "=>"            { emit RIGHT_PAREN_ARROW }
 
     (* comparisons *)
     | "==" | "!=" | "<=" | ">=" | '<' | '>' | "=~" { emit (COMP (Lexing.lexeme lexbuf))  }
