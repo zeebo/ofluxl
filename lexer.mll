@@ -36,7 +36,7 @@ let grab_string () =
 }
 
 let white = ' ' | '\t'
-let newline = '\r' | '\n' | "\r\n"
+let newline = "\r\n" | '\r' | '\n'
 
 let digit  = ['0'-'9']
 let digit2 = digit digit
@@ -48,9 +48,14 @@ let float = digit* frac? exp?
 let ident  = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
+    (* comments *)
+    | "//" [^ '\r' '\n' ]* newline? { token lexbuf }
+    | "/*" { read_comment lexbuf; token lexbuf }
+
     (* whitespace *)
     | white+  { token lexbuf }
     | newline { Lexing.new_line lexbuf; token lexbuf }
+
 
     (* arrow symbols *)
     | ')' white* "=>" white* '{' { emit RIGHT_PAREN_ARROW_LEFT_BRACE }
@@ -141,3 +146,8 @@ and read_char = parse
     | _ '\''  { Lexing.lexeme_char lexbuf 0 }
     | _       { lexing_error lexbuf }
     | eof     { raise (Error ("Unclosed character literal", lexbuf.Lexing.lex_curr_p)) }
+
+and read_comment = parse
+    | "*/"    { }
+    | newline { Lexing.new_line lexbuf; read_comment lexbuf }
+    | _       { read_comment lexbuf }

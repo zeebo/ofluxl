@@ -27,10 +27,14 @@ let print_error error =
     | Parsing lexbuf -> lexbuf, "parse"
   in
   let line, s_col, c_col = positions lexbuf in
-
-  printf "%s error:\n\n" kind;
-  print_context lexbuf line;
-  printf "%s%s%s\n"
-    (String.make 6 ' ')
-    (String.make s_col '~')
-    (String.make (c_col - s_col) '^')
+  let carrots = c_col - s_col in
+  if carrots = 0 then
+    printf "%s error: unexpected EOF\n" kind
+  else begin
+    printf "%s error:\n\n" kind;
+    print_context lexbuf line;
+    printf "%s%s%s\n"
+      (String.make 6 ' ')
+      (String.make s_col '~')
+      (String.make carrots '^')
+  end

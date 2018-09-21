@@ -31,7 +31,6 @@ main: e = expr EOF { e };
 // deficiencies                      | example
 // ----------------------------------|-------------------------
 // pipe function parameters          | i forget the syntax
-// comments                          | // or /*
 
 expr:
     | LEFT_PAREN ps = separated_list(COMMA, IDENT) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
