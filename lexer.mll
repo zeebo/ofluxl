@@ -56,10 +56,10 @@ rule token = parse
     | white+  { token lexbuf }
     | newline { Lexing.new_line lexbuf; token lexbuf }
 
-
     (* arrow symbols *)
     | ')' white* "=>" white* '{' { emit RIGHT_PAREN_ARROW_LEFT_BRACE }
     | ')' white* "=>"            { emit RIGHT_PAREN_ARROW }
+    | "<-"                       { emit PIPE_ARROW }
 
     (* comparisons *)
     | "==" | "!=" | "<=" | ">=" | '<' | '>' | "=~" { emit (COMP (Lexing.lexeme lexbuf))  }

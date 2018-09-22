@@ -14,7 +14,7 @@ type expr =
   | Div of expr * expr
   | Uminus of expr
   | String of string
-  | Func of string list * expr
+  | Func of (string * default option) list * expr
   | Call of expr * (string * expr) list
   | Pipe of expr * expr
   | List of expr list
@@ -26,4 +26,8 @@ type expr =
   | And of expr * expr
   | Or of expr * expr
   | Return of expr
+
+and default =
+  | DExpr of expr
+  | DPipe
 [@@deriving sexp]

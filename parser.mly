@@ -1,4 +1,4 @@
-%token DOT COMMA COLON PIPE
+%token DOT COMMA COLON PIPE PIPE_ARROW
 %token RIGHT_PAREN_ARROW RIGHT_PAREN_ARROW_LEFT_BRACE
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
@@ -33,8 +33,8 @@ main: e = expr EOF { e };
 // pipe function parameters          | i forget the syntax
 
 expr:
-    | LEFT_PAREN ps = separated_list(COMMA, IDENT) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
-    | LEFT_PAREN ps = separated_list(COMMA, IDENT) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
     | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
@@ -62,4 +62,14 @@ expr:
     | RETURN e = expr { Ast.Return e }
     ;
 
-colon_arg:     n = IDENT COLON e = expr { (n, e) };
+colon_arg:
+    n = IDENT COLON e = expr { (n, e) };
+
+func_param:
+    n = IDENT
+    d = func_param_default?
+    { (n, d) }
+
+func_param_default:
+    | EQUAL PIPE_ARROW { Ast.DPipe }
+    | EQUAL e = expr { Ast.DExpr e }
