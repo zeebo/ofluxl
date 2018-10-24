@@ -256,38 +256,17 @@ let try_unify ctx =
   let rec try_unify_typ = function
     | (typ, Variable name) -> bind name typ
     | (Variable name, typ) -> bind name typ
-    (* most of these just need to check that they're physically the same *)
-    | _ -> Error `Todo
+    (* todo: lists, funcs *)
+    | (left, right) as typs ->
+      if phys_equal left right then
+        Ok Subst.empty
+      else
+        Error (`MismatchedTypes typs)
 
   and bind name typ =
     if phys_equal (Variable name) typ then Ok Subst.empty
     else if Types.occurs name typ then Error (`Infinite (name, typ))
     else Ok (Subst.singleton name typ)
-
-  (*
-  and merge_kind_record
-      (Record { fields = fieldsl; upper = upperl; lower = lowerl })
-      (Record { fields = fieldsr; upper = upperr; lower = lowerr }) =
-
-    let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
-        | `Left left -> Some left
-        | `Right right -> Some right
-        | `Both (left, right) ->
-          match try_unify_typ (left, right) with
-          | Ok subst ->  Some (Subst.apply subst left)
-          | Error _ -> Some Invalid
-      )
-    in
-    let upper = match (upperl, upperr) with
-      | (None, Some upperr) -> Some upperr
-      | (Some upperl, None) -> Some upperl
-      | (None, None) -> None
-      | (Some upperl, Some upperr) -> Some (Set.union upperl upperr)
-    in
-    let lower = Set.inter lowerl lowerr in
-
-    { fields; upper; lower }
-  *)
 
   and try_merge_kind = function
     | (Record { fields = fieldsl; upper = upperl; lower = lowerl },
@@ -316,7 +295,15 @@ let try_unify ctx =
     | (Cls Cmp, Cls Add) -> Ok (Cls Add)
     | (Cls Cmp, Cls Num) -> Ok (Cls Num)
 
-    | _ -> Error `Todo
+    | (Cls Add, Cls Cmp) -> Ok (Cls Add)
+    | (Cls Add, Cls Add) -> Ok (Cls Add)
+    | (Cls Add, Cls Num) -> Ok (Cls Num)
+
+    | (Cls Num, Cls Cmp) -> Ok (Cls Num)
+    | (Cls Num, Cls Add) -> Ok (Cls Num)
+    | (Cls Num, Cls Num) -> Ok (Cls Num)
+
+    | kinds -> Error (`MismatchedKinds kinds)
   in
 
   (* ignore these issues for now *)
@@ -325,6 +312,8 @@ let try_unify ctx =
 
 exception Unification of
     [ `Infinite of (tvar * typ)
+    | `MismatchedKinds of (kind * kind)
+    | `MismatchedTypes of (typ * typ)
     | `Todo
     ]
 
