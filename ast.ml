@@ -1,4 +1,11 @@
-open Base
+open Std
+
+(* TODO: have some validation methods that make sure
+ * some properties are true, like pipes only happen
+ * on calls, or theres only one DPipe default per
+ * function definition, or the names are all unique
+ * or whatever.
+*)
 
 type expr =
   | Ident of string
@@ -8,12 +15,12 @@ type expr =
   | Time of string
   | Regex of string
   | Char of char
+  | String of string
   | Plus of expr * expr
   | Minus of expr * expr
   | Times of expr * expr
   | Div of expr * expr
   | Uminus of expr
-  | String of string
   | Func of (string * default option) list * expr
   | Call of expr * (string * expr) list
   | Pipe of expr * expr
@@ -31,3 +38,7 @@ and default =
   | DExpr of expr
   | DPipe
 [@@deriving sexp]
+
+(* TODO: remove this by making pipe encode that it requires the
+ * right hand expr to be a call *)
+exception Invalid of expr

@@ -10,6 +10,8 @@
 %token <char> CHAR
 %token EOF
 
+%left LEFT_PAREN
+%left RIGHT_PAREN_ARROW
 %left EQUAL
 %right PIPE
 %left AND OR
@@ -18,8 +20,6 @@
 %left TIMES DIV
 %left LEFT_BRACKET DOT
 %nonassoc UMINUS
-%left RIGHT_PAREN_ARROW
-%left LEFT_PAREN
 %left RETURN
 
 %start <Ast.expr> main
@@ -27,10 +27,6 @@
 %%
 
 main: e = expr EOF { e };
-
-// deficiencies                      | example
-// ----------------------------------|-------------------------
-// pipe function parameters          | i forget the syntax
 
 expr:
     | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
@@ -50,7 +46,7 @@ expr:
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
     | MINUS e = expr %prec UMINUS { Ast.Uminus e }
     | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
-    | e1 = expr PIPE e2 = expr  { Ast.Pipe (e1, e2) }
+    | e1 = expr PIPE e2 = expr { Ast.Pipe (e1, e2) }
     | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
     | e = expr DOT i = IDENT { Ast.Select (e, i) }

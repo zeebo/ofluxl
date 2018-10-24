@@ -1,5 +1,5 @@
 {
-open Base
+open Std
 open Parser
 
 exception Error of string * Lexing.position
