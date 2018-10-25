@@ -20,26 +20,17 @@ let solve expr =
   print_expr expr;
   print_endline "\n";
 
-  let typ, typ_constraints, kind_constraints = Solve.solve expr in
+  let typ, kind = Solve.solve_exn expr in
 
   print_endline "typ:";
   print_typ typ;
   print_endline "\n";
 
-  List.iter typ_constraints ~f:(fun (left, right) ->
-      print_endline "type constraint:";
-      print_typ left;
-      print " => ";
-      print_typ right;
-      print_endline "\n";
-    );
-
-  List.iter kind_constraints ~f:(fun (left, right) ->
-      print_endline "kind constraint:";
-      print_typ left;
-      print " => ";
-      print_kind right;
-      print_endline "\n";
+  Map.iteri kind ~f:(fun ~key:name ~data:kind ->
+      print name;
+      print_endline ":";
+      print_kind kind;
+      print_endline "\n"
     )
 
 let () =

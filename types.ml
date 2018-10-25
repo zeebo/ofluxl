@@ -18,6 +18,7 @@ and typ =
   | Basic of basic
   | List of typ
   | Func of func
+  | Record of tvar
   | Invalid
 
 and func =
@@ -28,8 +29,8 @@ and func =
   }
 
 and kind =
-  | Record of record
-  | Cls of cls
+  | KRecord of record
+  | KCls of cls
 
 (* it is important for unification that these classes
  * have a strict containment heirarchy *)
@@ -49,11 +50,12 @@ and record =
 exception Infinite of (string * typ)
 
 let rec occurs name = function
-  | Variable var -> String.equal var name
+  | Variable tvar -> String.equal tvar name
   | Basic _ -> false
   | List typ -> occurs name typ
   | Func { args; _ } -> Map.exists args ~f:(occurs name)
   | Invalid -> false
+  | Record tvar -> String.equal tvar name
 
 let rec invalid = function
   | List typ -> invalid typ
