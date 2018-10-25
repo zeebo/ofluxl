@@ -10,16 +10,16 @@
 %token <char> CHAR
 %token EOF
 
-%left LEFT_PAREN
-%left RIGHT_PAREN_ARROW
-%left EQUAL
-%right PIPE
-%left AND OR
-%left COMP
 %left PLUS MINUS
 %left TIMES DIV
-%left LEFT_BRACKET DOT
+%left COMP
+%left AND OR
+%left LEFT_PAREN
+%left RIGHT_PAREN_ARROW
 %nonassoc UMINUS
+%left LEFT_BRACKET DOT
+%left EQUAL
+%right PIPE
 %left RETURN
 
 %start <Ast.expr> main
@@ -31,6 +31,7 @@ main: e = expr EOF { e };
 expr:
     | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
     | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
+    | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
@@ -45,7 +46,6 @@ expr:
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
     | MINUS e = expr %prec UMINUS { Ast.Uminus e }
-    | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | e1 = expr PIPE e2 = expr { Ast.Pipe (e1, e2) }
     | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }

@@ -6,130 +6,17 @@ type error =
   | MismatchedKinds of (kind * kind)
   | MismatchedTypes of (typ * typ)
   | InvalidSubst of (string * typ)
+  | InvalidTypeForKind of (typ * kind)
+  | InvalidKind of kind
   | UnknownIdentifier of string
 
 exception Error of error
 
-module Ctx = struct
-  type t =
-    { mutable typ_constraints : (typ * typ) list
-    ; mutable kind_constraints : (string * kind) list
-    ; mutable num: int
-    }
-  [@@deriving sexp]
+(*
+ * constraint generation
+ *)
 
-  let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
-
-  let create () =
-    { typ_constraints = []
-    ; kind_constraints = []
-    ; num = 0
-    }
-
-  let typ_constraints { typ_constraints; _ } = typ_constraints
-  let kind_constraints { kind_constraints; _ } = kind_constraints
-
-  let add_typ_constraint ctx (left, right) =
-    ctx.typ_constraints <- (left, right) :: ctx.typ_constraints
-
-  let add_kind_constraint ctx (name, kind) =
-    ctx.kind_constraints <- (name, kind) :: ctx.kind_constraints
-
-  let fresh_type_name ctx =
-    ctx.num <- ctx.num + 1;
-    Printf.sprintf "a%d" ctx.num
-end
-
-module Env = struct
-  type t = typ Map.M(String).t
-  [@@deriving sexp]
-
-  let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
-
-  let empty = Map.of_alist_exn (module String)
-      [ ("true", Basic Bool)
-      ; ("false", Basic Bool)
-      ]
-
-  let insert env args =
-    Map.merge env args ~f:(fun ~key:_ -> function
-        | `Both (_, right) -> Some right
-        | `Left left -> Some left
-        | `Right right -> Some right
-      )
-
-  let find env name =
-    Map.find env name
-end
-
-module Subst = struct
-  type t = typ Map.M(String).t
-  [@@deriving sexp]
-
-  let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
-
-  let empty = Map.empty (module String)
-
-  let singleton = Map.singleton (module String)
-
-  let rec subst_typ name typ = function
-    | Variable name' as typ' ->
-      if String.equal name' name then typ else typ'
-    | Record name' as typ' ->
-      if String.equal name' name then typ else typ'
-    | List typ' -> List (subst_typ name typ typ')
-    | Func { args; table; required; ret } ->
-      Func { args = Map.map args ~f:(subst_typ name typ)
-           ; table
-           ; required
-           ; ret = subst_typ name typ ret
-           }
-    | Basic _ as typ -> typ
-    | Invalid as typ -> typ
-
-  let subst_kind name typ = function
-    | (name', (KCls _ as kind)) ->
-      let name' =
-        match (String.equal name' name, typ) with
-        | (true, Variable name) -> name
-        | _ -> name'
-      in
-
-      (name', kind)
-
-    | (name', KRecord { fields; upper; lower }) ->
-      let name' =
-        match (String.equal name' name, typ) with
-        | (true, Record name) -> name
-        | _ -> name'
-      in
-
-      ( name'
-      , KRecord { fields = Map.map fields ~f:(subst_typ name typ)
-                ; upper
-                ; lower
-                }
-      )
-
-  let apply_typ subst typ =
-    Map.fold subst ~init:typ ~f:(fun ~key ~data typ ->
-        subst_typ key data typ)
-
-  let apply_kind subst kind =
-    Map.fold subst ~init:kind ~f:(fun ~key ~data kind ->
-        subst_kind key data kind)
-
-  let merge substl substr unify =
-    Map.merge substl substr ~f:(fun ~key:_ -> function
-        | `Both (left, right) ->
-          let subst = unify left right in
-          Some (apply_typ subst left)
-        | `Left left -> Some (apply_typ substr left)
-        | `Right right -> Some (apply_typ substl right)
-      )
-end
-
-let rec generate ctx env = function
+let rec generate_typ ctx env = function
   (* identifier lookup *)
   | Ast.Ident ident -> begin
       match Env.find env ident with
@@ -149,16 +36,16 @@ let rec generate ctx env = function
   (* math expressions *)
   | Ast.Uminus expr ->
     let name = Ctx.fresh_type_name ctx in
-    let typ = generate ctx env expr in
+    let typ = generate_typ ctx env expr in
     Ctx.add_kind_constraint ctx (name, KCls Num);
     Ctx.add_typ_constraint ctx (Variable name, typ);
     typ
 
   | Ast.Plus (left, right) ->
     let namel = Ctx.fresh_type_name ctx in
-    let typl = generate ctx env left in
+    let typl = generate_typ ctx env left in
     let namer = Ctx.fresh_type_name ctx in
-    let typr = generate ctx env right in
+    let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
     Ctx.add_kind_constraint ctx (namel, KCls Add);
     Ctx.add_typ_constraint ctx (Variable namel, typl);
@@ -171,9 +58,9 @@ let rec generate ctx env = function
   | Ast.Times (left, right)
   | Ast.Div (left, right) ->
     let namel = Ctx.fresh_type_name ctx in
-    let typl = generate ctx env left in
+    let typl = generate_typ ctx env left in
     let namer = Ctx.fresh_type_name ctx in
-    let typr = generate ctx env right in
+    let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
     Ctx.add_kind_constraint ctx (namel, KCls Num);
     Ctx.add_typ_constraint ctx (Variable namel, typl);
@@ -185,8 +72,8 @@ let rec generate ctx env = function
   (* logical operations *)
   | Ast.And (left, right)
   | Ast.Or (left, right) ->
-    let typl = generate ctx env left in
-    let typr = generate ctx env right in
+    let typl = generate_typ ctx env left in
+    let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, Basic Bool);
     Ctx.add_typ_constraint ctx (typr, Basic Bool);
     Basic Bool
@@ -195,11 +82,11 @@ let rec generate ctx env = function
   | Ast.Func (args, body) ->
     let args, table, required = generate_func_args ctx env args in
     let env' = Env.insert env args in
-    let ret = generate ctx env' body in
+    let ret = generate_typ ctx env' body in
     Func { args; table; required; ret }
 
   | Ast.Call (expr, args) ->
-    let typl = generate ctx env expr in
+    let typl = generate_typ ctx env expr in
     let args, required = generate_call_args ctx env args in
     let ret = Variable (Ctx.fresh_type_name ctx) in
     (* TODO: can you call a function with a `in=<-` style argument somehow? *)
@@ -207,8 +94,8 @@ let rec generate ctx env = function
     ret
 
   | Ast.Pipe (left, Ast.Call (right, args)) ->
-    let typl = generate ctx env left in
-    let typr = generate ctx env right in
+    let typl = generate_typ ctx env left in
+    let typr = generate_typ ctx env right in
     let args, required = generate_call_args ctx env args in
     let ret = Variable (Ctx.fresh_type_name ctx) in
     Ctx.add_typ_constraint ctx (typl, Basic Table);
@@ -219,15 +106,15 @@ let rec generate ctx env = function
     (* if the right side of the pipe isn't a call, it's a problem *)
     raise (Ast.Invalid expr)
 
-  | Ast.Return expr -> generate ctx env expr
+  | Ast.Return expr -> generate_typ ctx env expr
 
   (* composite types *)
   | Ast.List exprs ->
     let typ = Variable (Ctx.fresh_type_name ctx) in
-    let typs = List.map exprs ~f:(generate ctx env) in
+    let typs = List.map exprs ~f:(generate_typ ctx env) in
     (* for now, assume lists are homogenous (??) *)
     List.iter typs ~f:(fun typ' -> Ctx.add_typ_constraint ctx (typ, typ'));
-    typ
+    List typ
 
   | Ast.Record fields ->
     let name = Ctx.fresh_type_name ctx in
@@ -243,8 +130,8 @@ let rec generate ctx env = function
   | Ast.Select (expr, field) ->
     let name = Ctx.fresh_type_name ctx in
     let typf = Variable (Ctx.fresh_type_name ctx) in
-    let typ = generate ctx env expr in
-    Ctx.add_typ_constraint ctx (Record name, typ);
+    let typ = generate_typ ctx env expr in
+    Ctx.add_typ_constraint ctx (typ, Record name);
     Ctx.add_kind_constraint ctx
       (name, KRecord { fields = Map.singleton (module String) field typf
                      ; lower = Set.singleton (module String) field
@@ -254,15 +141,15 @@ let rec generate ctx env = function
 
   | Ast.Index (expr, index) ->
     let typ = Variable (Ctx.fresh_type_name ctx) in
-    let typl = generate ctx env expr in
-    let typi = generate ctx env index in
+    let typl = generate_typ ctx env expr in
+    let typi = generate_typ ctx env index in
     Ctx.add_typ_constraint ctx (typl, List typ);
     Ctx.add_typ_constraint ctx (typi, Basic Integer);
     typ
 
   (* assignment *)
   | Ast.Assign (_name, expr) ->
-    let typ = generate ctx env expr in
+    let typ = generate_typ ctx env expr in
     (* TODO: we need to have an idea of what statements come
      * after in order for assignment to make any sense. for
      * now assume assignment returns the value that was
@@ -273,9 +160,9 @@ let rec generate ctx env = function
   (* comparisons *)
   | Ast.Comp (left, _, right) ->
     let namel = Ctx.fresh_type_name ctx in
-    let typl = generate ctx env left in
+    let typl = generate_typ ctx env left in
     let namer = Ctx.fresh_type_name ctx in
-    let typr = generate ctx env right in
+    let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (Variable namel, typl);
     Ctx.add_kind_constraint ctx (namel, KCls Cmp);
     Ctx.add_typ_constraint ctx (Variable namer, typr);
@@ -283,61 +170,82 @@ let rec generate ctx env = function
     Ctx.add_typ_constraint ctx (typl, typr);
     Basic Bool
 
+(* generate a type for a given default argument *)
 and generate_default ctx env = function
-  | Some (Ast.DExpr expr) -> generate ctx env expr
+  | Some (Ast.DExpr expr) -> generate_typ ctx env expr
   | Some Ast.DPipe -> Basic Table
   | None -> Variable (Ctx.fresh_type_name ctx)
 
+(* generate a type for a function *)
 and generate_func_args ctx env args =
-  let table = args
-              |> List.exists ~f:(fun (_, def) -> match def with
-                  | Some Ast.DPipe -> true
-                  | _ -> false)
+  let table =
+    args
+    |> List.exists ~f:(fun (_, def) ->
+        match def with
+        | Some Ast.DPipe -> true
+        | _ -> false)
   in
-  let required = args
-                 |> List.filter_map ~f:(fun (name, def) ->
-                     match def with
-                     | Some _ -> None
-                     | None -> Some name)
-                 |> Set.of_list (module String)
+
+  let required =
+    args
+    |> List.filter_map ~f:(fun (name, def) ->
+        match def with
+        | Some _ -> None
+        | None -> Some name)
+    |> Set.of_list (module String)
   in
-  let args = args
-             |> List.map ~f:(fun (name, def) -> (name, generate_default ctx env def))
-             |> Map.of_alist_exn (module String)
+
+  let args =
+    args
+    |> List.map ~f:(fun (name, def) -> (name, generate_default ctx env def))
+    |> Map.of_alist_exn (module String)
   in
+
   ( args, table, required)
 
+(* generate a type for a call *)
 and generate_call_args ctx env args =
-  let args = args
-             |> List.map ~f:(fun (name, expr) -> (name, generate ctx env expr))
-             |> Map.of_alist_exn (module String)
+  let args =
+    args
+    |> List.map ~f:(fun (name, expr) -> (name, generate_typ ctx env expr))
+    |> Map.of_alist_exn (module String)
   in
+
   ( args, Set.of_list (module String) @@ Map.keys args )
 
-let solve_exn expr =
-  let rec unify_typs_exn left right =
-    match (left, right) with
-    (* unify records *)
-    | (Record namel, Record namer) ->
-      Subst.singleton namel (Record namer)
+(*
+ * type/kind unification
+ *)
 
-    (* variables unify with each other *)
-    | (Variable namel, Variable namer) ->
-      Subst.singleton namel (Variable namer)
+let rec unify_typs_exn ?(depth=0) kinds left right =
+  let indent = String.init depth ~f:(fun _ -> '\t') in
 
-    (* a variable with anything else substitutes
-     * unless that would cause an infinite type *)
-    | (Variable name, typ)
-    | (typ, Variable name) ->
-      if Types.occurs name typ then
-        raise @@ Error (Infinite (name, typ))
+  printf "%sunify: " indent;
+  Sexp.List [sexp_of_typ left; sexp_of_typ right] |> Sexp.to_string_hum |> print_endline;
+
+  let kinds, subst = match (left, right) with
+    | (Record namel, Record namer)
+    | (Variable namel, Record namer)
+    | (Record namer, Variable namel) ->
+      if String.equal namel namer then kinds, Subst.empty
       else
-        Subst.singleton name typ
+        let kinds, subst = unify_kinds_by_name_exn ~depth:(depth+1) kinds namel namer in
+        kinds, Subst.merge subst (Subst.singleton namel (Record namer))
 
-    (* lists must unify their element types *)
-    | (List left, List right) -> unify_typs_exn left right
+    | (Variable namel, Variable namer) ->
+      if String.equal namel namer then kinds, Subst.empty
+      else
+        let kinds, subst = unify_kinds_by_name_exn ~depth:(depth+1) kinds namel namer in
+        kinds, Subst.merge subst (Subst.singleton namel (Variable namer))
 
-    (* functions must have the same argument types *)
+    | (Variable name, typ) | (typ, Variable name) ->
+      if Types.occurs name typ then raise @@ Error (Infinite (name, typ))
+      else
+        let kinds = unify_kinds_by_typ_exn kinds name typ in
+        kinds, Subst.singleton name typ
+
+    | (List left, List right) -> unify_typs_exn ~depth:(depth+1) kinds left right
+
     | (Func {args = argsl; table = tablel; required = requiredl; ret = retl },
        Func {args = argsr; table = tabler; required = requiredr; ret = retr}) as typs ->
 
@@ -349,34 +257,64 @@ let solve_exn expr =
          not @@ Set.is_subset requiredl ~of_:requiredr
       then
         raise @@ Error (MismatchedTypes typs)
-      else
-        let init = unify_typs_exn retl retr in
-        List.fold namesl ~init ~f:(fun subst key ->
-            let typl = Map.find_exn argsl key in
-            let typr = Map.find_exn argsr key in
-            let subst' = unify_typs_exn typl typr in
-            Subst.merge subst subst' unify_typs_exn
-          )
+      else begin
+        List.fold namesl
+          ~init:(unify_typs_exn ~depth:(depth+1) kinds retl retr)
+          ~f:(fun (kinds, subst) name ->
+              let typl = Map.find_exn argsl name in
+              let typr = Map.find_exn argsr name in
+              let kinds, subst' = unify_typs_exn ~depth:(depth+1) kinds typl typr in
+              kinds, Subst.merge subst' subst)
+      end
 
-    (* everything else has to be exactly equal and does not require subs *)
     | (left, right) as typs ->
-      if phys_equal left right then
-        Subst.empty
-      else
-        raise @@ Error (MismatchedTypes typs)
+      if phys_equal left right then kinds, Subst.empty
+      else raise @@ Error (MismatchedTypes typs)
+  in
 
-  and merge_kind left right =
-    match (left, right) with
-    | (KRecord { fields = fieldsl; upper = upperl; lower = lowerl },
-       KRecord { fields = fieldsr; upper = upperr; lower = lowerr }) ->
+  (Map.map kinds ~f:(Subst.apply_kind subst), subst)
 
+and unify_kinds_by_typ_exn kinds name typ =
+  match Map.find kinds name with
+  | None -> kinds
+
+  | Some (KCls _ as kind) -> begin
+      match typ with
+      | Basic _ -> Map.remove kinds name
+      (* TODO: more checking based on the cls *)
+      | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
+    end
+
+  | Some (KRecord _ as kind) -> begin
+      match typ with
+      | Variable _ -> kinds
+      | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
+    end
+
+and unify_kinds_by_name_exn ?(depth=0) kinds namel namer =
+  let indent = String.init depth ~f:(fun _ -> '\t') in
+
+  printf "%sunify kinds: %s => %s\n" indent namel namer;
+
+  let kinds, subst =
+    match (Map.find kinds namel, Map.find kinds namer) with
+    | (Some KCls _, Some KCls _) ->
+      let kinds = Map.remove kinds namel in
+      kinds, Subst.empty
+
+    | (Some KRecord { fields = fieldsl; upper = upperl; lower = lowerl },
+       Some KRecord { fields = fieldsr; upper = upperr; lower = lowerr }) ->
+
+      let kinds, subst = ref kinds, ref Subst.empty in
       let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
           | `Left left -> Some left
           | `Right right -> Some right
           | `Both (left, right) ->
             try
-              let subst = unify_typs_exn left right in
-              Some (Subst.apply_typ subst left)
+              let kinds', subst' = unify_typs_exn ~depth:(depth+1) !kinds left right in
+              kinds := kinds';
+              subst := Subst.merge subst' !subst;
+              Some (Subst.apply_typ subst' left)
             with
             | Error _ -> Some Invalid
         )
@@ -385,59 +323,87 @@ let solve_exn expr =
         | (None, Some upperr) -> Some upperr
         | (Some upperl, None) -> Some upperl
         | (None, None) -> None
-        | (Some upperl, Some upperr) -> Some (Set.union upperl upperr)
+        | (Some upperl, Some upperr) -> Some (Set.inter upperl upperr)
       in
-      let lower = Set.inter lowerl lowerr in
+      let lower = Set.union lowerl lowerr in
 
-      KRecord { fields; upper; lower }
+      let kinds = Map.remove !kinds namel in
+      let kinds = Map.set kinds ~key:namer ~data:(KRecord { fields; upper; lower }) in
+      kinds, !subst
 
-    | (KCls Cmp, KCls Cmp) -> KCls Cmp
-    | (KCls Cmp, KCls Add) -> KCls Add
-    | (KCls Cmp, KCls Num) -> KCls Num
+    | (Some kind, None) ->
+      let kinds = Map.remove kinds namel in
+      let kinds = Map.set kinds ~key:namer ~data:kind in
+      kinds, Subst.empty
 
-    | (KCls Add, KCls Cmp) -> KCls Add
-    | (KCls Add, KCls Add) -> KCls Add
-    | (KCls Add, KCls Num) -> KCls Num
+    | (None, Some _) ->
+      kinds, Subst.empty
 
-    | (KCls Num, KCls Cmp) -> KCls Num
-    | (KCls Num, KCls Add) -> KCls Num
-    | (KCls Num, KCls Num) -> KCls Num
+    | (None, None) ->
+      kinds, Subst.empty
 
-    | kinds -> raise @@ Error (MismatchedKinds kinds)
+    | (Some kindl, Some kindr) ->
+      raise @@ Error (MismatchedKinds (kindl, kindr))
   in
 
+  printf "%skinds: %s\n" indent (Map.sexp_of_m__t (module String) (sexp_of_kind) kinds |> Sexp.to_string);
+
+  kinds, subst
+
+(*
+ * type solving
+ *)
+
+let solve_exn expr =
   let ctx = Ctx.create () in
   let env = Env.empty in
-  let typ = generate ctx env expr in
+  let typ = generate_typ ctx env expr in
 
   print_endline "typ:";
-  print_endline @@ Sexp.to_string_hum @@ Types.sexp_of_typ typ;
-  print_endline "";
-
-  print_endline "ctx:";
-  Ctx.print ctx;
+  Types.print typ;
   print_endline "";
 
   let typ_constraints = Ctx.typ_constraints ctx in
-  let subst = List.fold typ_constraints
-      ~init:Subst.empty
-      ~f:(fun subst (left, right) ->
-          Subst.merge subst (unify_typs_exn left right) unify_typs_exn)
+  let kind_constraints = Ctx.kind_constraints ctx in
+
+  print_endline "typ constraints:";
+  typ_constraints
+  |> List.map ~f:(fun (typ, typ') -> [typ; typ'])
+  |> List.sexp_of_t (List.sexp_of_t sexp_of_typ)
+  |> Sexp.to_string_hum
+  |> print_endline;
+  print_endline "";
+
+  print_endline "kind constraints:";
+  kind_constraints
+  |> List.map ~f:(fun (name, kind) -> Sexp.List [sexp_of_string name; sexp_of_kind kind])
+  |> List.sexp_of_t Sexp.sexp_of_t
+  |> Sexp.to_string_hum
+  |> print_endline;
+  print_endline "";
+
+  (* fold up the substitutions from unification of the constraints *)
+  let kinds = Map.of_alist_exn (module String) kind_constraints in
+  let kinds, subst = List.fold typ_constraints
+      ~init:(kinds, Subst.empty)
+      ~f:(fun (kinds, subst) (left, right) ->
+          let left = Subst.apply_typ subst left in
+          let right = Subst.apply_typ subst right in
+          let kinds', subst' = unify_typs_exn kinds left right in
+          print_endline "";
+          kinds', Subst.merge subst' subst)
   in
 
   print_endline "subst:";
   Subst.print subst;
   print_endline "";
 
-  let kind_constraints = Ctx.kind_constraints ctx in
-  let kind_constraints = List.map kind_constraints
-      ~f:(Subst.apply_kind subst)
-  in
-  let kind = Map.of_alist_reduce (module String) kind_constraints
-      ~f:merge_kind
-  in
+  let kinds = Map.map kinds ~f:(Subst.apply_kind subst) in
+  let typ = Subst.apply_typ subst typ in
 
-  (Subst.apply_typ subst typ, kind)
+  match Map.data kinds |> List.find ~f:Types.invalid_kind with
+  | Some kind -> raise @@ Error (InvalidKind kind)
+  | None -> (typ, kinds)
 
 let solve expr =
   try Ok (solve_exn expr) with

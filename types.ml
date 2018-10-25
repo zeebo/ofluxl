@@ -47,7 +47,7 @@ and record =
 
 [@@deriving sexp]
 
-exception Infinite of (string * typ)
+let print typ = print_endline @@ Sexp.to_string_hum @@ sexp_of_typ typ
 
 let rec occurs name = function
   | Variable tvar -> String.equal tvar name
@@ -57,8 +57,11 @@ let rec occurs name = function
   | Invalid -> false
   | Record tvar -> String.equal tvar name
 
-let rec invalid = function
-  | List typ -> invalid typ
-  | Func { args; _ }  -> Map.exists args ~f:invalid
-  | Invalid -> true
-  | _ -> false
+let invalid_kind = function
+  | KCls _ -> false
+  | KRecord { fields; lower; _ } ->
+    Set.exists lower ~f:(fun field ->
+        match Map.find fields field with
+        | Some Invalid -> true
+        | _ -> false)
+

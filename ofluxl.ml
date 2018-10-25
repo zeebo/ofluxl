@@ -14,24 +14,22 @@ let sprint fn value = fn value |> Sexp.to_string_hum |> print
 let print_expr = sprint Ast.sexp_of_expr
 let print_typ = sprint Types.sexp_of_typ
 let print_kind = sprint Types.sexp_of_kind
+let print_kinds = sprint (Map.sexp_of_m__t (module String) Types.sexp_of_kind)
 
 let solve expr =
   print_endline "ast:";
   print_expr expr;
   print_endline "\n";
 
-  let typ, kind = Solve.solve_exn expr in
+  let typ, kinds = Solve.solve_exn expr in
 
   print_endline "typ:";
   print_typ typ;
   print_endline "\n";
 
-  Map.iteri kind ~f:(fun ~key:name ~data:kind ->
-      print name;
-      print_endline ":";
-      print_kind kind;
-      print_endline "\n"
-    )
+  print_endline "kinds:";
+  print_kinds kinds;
+  print_endline "\n"
 
 let () =
   parse_stdin solve
