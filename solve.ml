@@ -1,8 +1,6 @@
 open Std
 open Types
 
-let gone = ref false
-
 type error =
   | Infinite of (tvar * typ)
   | MismatchedKinds of (kind * kind)
