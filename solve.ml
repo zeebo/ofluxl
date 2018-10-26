@@ -8,19 +8,28 @@ type error =
   | InvalidSubst of (string * typ)
   | InvalidTypeForKind of (typ * kind)
   | InvalidKind of kind
+  | InvalidType of typ
   | UnknownIdentifier of string
+  | UnknownRecordAccess of Set.M(String).t
+[@@deriving sexp]
 
 exception Error of error
+[@@deriving sexp]
 
 (*
  * constraint generation
  *)
 
+let add_kind_constraint ctx typ kind =
+  match typ with
+  | Variable name -> Ctx.add_kind_constraint ctx (name, kind)
+  | _ -> ()
+
 let rec generate_typ ctx env = function
   (* identifier lookup *)
   | Ast.Ident ident -> begin
       match Env.find env ident with
-      | Some typ -> typ
+      | Some scheme -> Ctx.inst ctx scheme
       | None -> raise @@ Error (UnknownIdentifier ident)
     end
 
@@ -35,38 +44,26 @@ let rec generate_typ ctx env = function
 
   (* math expressions *)
   | Ast.Uminus expr ->
-    let name = Ctx.fresh_type_name ctx in
     let typ = generate_typ ctx env expr in
-    Ctx.add_kind_constraint ctx (name, KCls Num);
-    Ctx.add_typ_constraint ctx (Variable name, typ);
+    add_kind_constraint ctx typ @@ KCls Num;
     typ
 
   | Ast.Plus (left, right) ->
-    let namel = Ctx.fresh_type_name ctx in
     let typl = generate_typ ctx env left in
-    let namer = Ctx.fresh_type_name ctx in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
-    Ctx.add_kind_constraint ctx (namel, KCls Add);
-    Ctx.add_typ_constraint ctx (Variable namel, typl);
-    Ctx.add_kind_constraint ctx (namer, KCls Add);
-    Ctx.add_typ_constraint ctx (Variable namer, typr);
-    Ctx.add_typ_constraint ctx (Variable namel, Variable namer);
+    add_kind_constraint ctx typl @@ KCls Add;
+    add_kind_constraint ctx typr @@ KCls Add;
     typl
 
   | Ast.Minus (left, right)
   | Ast.Times (left, right)
   | Ast.Div (left, right) ->
-    let namel = Ctx.fresh_type_name ctx in
     let typl = generate_typ ctx env left in
-    let namer = Ctx.fresh_type_name ctx in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
-    Ctx.add_kind_constraint ctx (namel, KCls Num);
-    Ctx.add_typ_constraint ctx (Variable namel, typl);
-    Ctx.add_kind_constraint ctx (namer, KCls Num);
-    Ctx.add_typ_constraint ctx (Variable namer, typr);
-    Ctx.add_typ_constraint ctx (Variable namel, Variable namer);
+    add_kind_constraint ctx typl @@ KCls Num;
+    add_kind_constraint ctx typr @@ KCls Num;
     typl
 
   (* logical operations *)
@@ -81,7 +78,8 @@ let rec generate_typ ctx env = function
   (* function support *)
   | Ast.Func (args, body) ->
     let args, table, required = generate_func_args ctx env args in
-    let env' = Env.insert env args in
+    let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module String))) in
+    let env' = Env.insert env schemes in
     let ret = generate_typ ctx env' body in
     Func { args; table; required; ret }
 
@@ -124,19 +122,20 @@ let rec generate_typ ctx env = function
                      ; lower = Set.empty (module String)
                      ; upper = Some upper
                      });
-    Record name
+    Variable name
 
   (* projections *)
   | Ast.Select (expr, field) ->
-    let name = Ctx.fresh_type_name ctx in
     let typf = Variable (Ctx.fresh_type_name ctx) in
-    let typ = generate_typ ctx env expr in
-    Ctx.add_typ_constraint ctx (typ, Record name);
-    Ctx.add_kind_constraint ctx
-      (name, KRecord { fields = Map.singleton (module String) field typf
-                     ; lower = Set.singleton (module String) field
-                     ; upper = None (* universe *)
-                     });
+    begin match generate_typ ctx env expr with
+      | Variable name ->
+        Ctx.add_kind_constraint ctx
+          (name, KRecord { fields = Map.singleton (module String) field typf
+                         ; lower = Set.singleton (module String) field
+                         ; upper = None (* universe *)
+                         });
+      | _ as typ -> raise @@ Error (InvalidType typ)
+    end ;
     typf
 
   | Ast.Index (expr, index) ->
@@ -147,27 +146,13 @@ let rec generate_typ ctx env = function
     Ctx.add_typ_constraint ctx (typi, Basic Integer);
     typ
 
-  (* assignment *)
-  | Ast.Assign (_name, expr) ->
-    let typ = generate_typ ctx env expr in
-    (* TODO: we need to have an idea of what statements come
-     * after in order for assignment to make any sense. for
-     * now assume assignment returns the value that was
-     * assigned.
-    *)
-    typ
-
   (* comparisons *)
   | Ast.Comp (left, _, right) ->
-    let namel = Ctx.fresh_type_name ctx in
     let typl = generate_typ ctx env left in
-    let namer = Ctx.fresh_type_name ctx in
     let typr = generate_typ ctx env right in
-    Ctx.add_typ_constraint ctx (Variable namel, typl);
-    Ctx.add_kind_constraint ctx (namel, KCls Cmp);
-    Ctx.add_typ_constraint ctx (Variable namer, typr);
-    Ctx.add_kind_constraint ctx (namer, KCls Cmp);
     Ctx.add_typ_constraint ctx (typl, typr);
+    add_kind_constraint ctx typl @@ KCls Cmp;
+    add_kind_constraint ctx typr @@ KCls Cmp;
     Basic Bool
 
 (* generate a type for a given default argument *)
@@ -217,37 +202,25 @@ and generate_call_args ctx env args =
  * type/kind unification
  *)
 
-let rec unify_typs_exn ?(depth=0) kinds left right =
-  let indent = String.init depth ~f:(fun _ -> '\t') in
-
-  printf "%sunify: " indent;
-  Sexp.List [sexp_of_typ left; sexp_of_typ right] |> Sexp.to_string_hum |> print_endline;
-
+let rec unify_typs_exn kinds left right =
   let kinds, subst = match (left, right) with
-    | (Record namel, Record namer)
-    | (Variable namel, Record namer)
-    | (Record namer, Variable namel) ->
-      if String.equal namel namer then kinds, Subst.empty
-      else
-        let kinds, subst = unify_kinds_by_name_exn ~depth:(depth+1) kinds namel namer in
-        kinds, Subst.merge subst (Subst.singleton namel (Record namer))
-
     | (Variable namel, Variable namer) ->
       if String.equal namel namer then kinds, Subst.empty
       else
-        let kinds, subst = unify_kinds_by_name_exn ~depth:(depth+1) kinds namel namer in
+        let kinds, subst = unify_kinds_by_name_exn kinds namel namer in
         kinds, Subst.merge subst (Subst.singleton namel (Variable namer))
 
-    | (Variable name, typ) | (typ, Variable name) ->
+    | (Variable name, typ)
+    | (typ, Variable name) ->
       if Types.occurs name typ then raise @@ Error (Infinite (name, typ))
       else
         let kinds = unify_kinds_by_typ_exn kinds name typ in
         kinds, Subst.singleton name typ
 
-    | (List left, List right) -> unify_typs_exn ~depth:(depth+1) kinds left right
+    | (List left, List right) -> unify_typs_exn kinds left right
 
     | (Func {args = argsl; table = tablel; required = requiredl; ret = retl },
-       Func {args = argsr; table = tabler; required = requiredr; ret = retr}) as typs ->
+       Func {args = argsr; table = tabler; required = requiredr; ret = retr }) as typs ->
 
       let namesl = List.sort ~compare:String.compare @@ Map.keys argsl in
       let namesr = List.sort ~compare:String.compare @@ Map.keys argsr in
@@ -259,11 +232,13 @@ let rec unify_typs_exn ?(depth=0) kinds left right =
         raise @@ Error (MismatchedTypes typs)
       else begin
         List.fold namesl
-          ~init:(unify_typs_exn ~depth:(depth+1) kinds retl retr)
+          ~init:(unify_typs_exn kinds retl retr)
           ~f:(fun (kinds, subst) name ->
               let typl = Map.find_exn argsl name in
+              let typl = Subst.apply_typ subst typl in
               let typr = Map.find_exn argsr name in
-              let kinds, subst' = unify_typs_exn ~depth:(depth+1) kinds typl typr in
+              let typr = Subst.apply_typ subst typr in
+              let kinds, subst' = unify_typs_exn kinds typl typr in
               kinds, Subst.merge subst' subst)
       end
 
@@ -278,10 +253,20 @@ and unify_kinds_by_typ_exn kinds name typ =
   match Map.find kinds name with
   | None -> kinds
 
-  | Some (KCls _ as kind) -> begin
+  | Some (KCls cls as kind) -> begin
       match typ with
-      | Basic _ -> Map.remove kinds name
-      (* TODO: more checking based on the cls *)
+      | Basic basic ->
+        begin match (basic, cls) with
+          | (Integer,  Cmp) | (Integer,  Add) | (Integer,  Num)
+          | (Float,    Cmp) | (Float,    Add) | (Float,    Num)
+          | (Duration, Cmp) | (Duration, Add) | (Duration, Num)
+          | (String,   Cmp) | (String,   Add)
+          | (Time,     Cmp)
+          | (Regex,    Cmp)
+          | (Char,     Cmp)
+          | (Bool,     Cmp) -> Map.remove kinds name
+          | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
+        end
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
     end
 
@@ -291,19 +276,25 @@ and unify_kinds_by_typ_exn kinds name typ =
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
     end
 
-and unify_kinds_by_name_exn ?(depth=0) kinds namel namer =
-  let indent = String.init depth ~f:(fun _ -> '\t') in
-
-  printf "%sunify kinds: %s => %s\n" indent namel namer;
+and unify_kinds kinds name left right =
+  let set data = Map.set kinds ~key:name ~data in
 
   let kinds, subst =
-    match (Map.find kinds namel, Map.find kinds namer) with
-    | (Some KCls _, Some KCls _) ->
-      let kinds = Map.remove kinds namel in
-      kinds, Subst.empty
+    match (left, right) with
+    | (KCls Cmp, KCls Cmp) -> set @@ KCls Cmp, Subst.empty
+    | (KCls Cmp, KCls Add) -> set @@ KCls Add, Subst.empty
+    | (KCls Cmp, KCls Num) -> set @@ KCls Num, Subst.empty
 
-    | (Some KRecord { fields = fieldsl; upper = upperl; lower = lowerl },
-       Some KRecord { fields = fieldsr; upper = upperr; lower = lowerr }) ->
+    | (KCls Add, KCls Cmp) -> set @@ KCls Add, Subst.empty
+    | (KCls Add, KCls Add) -> set @@ KCls Add, Subst.empty
+    | (KCls Add, KCls Num) -> set @@ KCls Num, Subst.empty
+
+    | (KCls Num, KCls Cmp) -> set @@ KCls Num, Subst.empty
+    | (KCls Num, KCls Add) -> set @@ KCls Num, Subst.empty
+    | (KCls Num, KCls Num) -> set @@ KCls Num, Subst.empty
+
+    | (KRecord { fields = fieldsl; upper = upperl; lower = lowerl },
+       KRecord { fields = fieldsr; upper = upperr; lower = lowerr }) ->
 
       let kinds, subst = ref kinds, ref Subst.empty in
       let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
@@ -311,7 +302,7 @@ and unify_kinds_by_name_exn ?(depth=0) kinds namel namer =
           | `Right right -> Some right
           | `Both (left, right) ->
             try
-              let kinds', subst' = unify_typs_exn ~depth:(depth+1) !kinds left right in
+              let kinds', subst' = unify_typs_exn !kinds left right in
               kinds := kinds';
               subst := Subst.merge subst' !subst;
               Some (Subst.apply_typ subst' left)
@@ -327,13 +318,40 @@ and unify_kinds_by_name_exn ?(depth=0) kinds namel namer =
       in
       let lower = Set.union lowerl lowerr in
 
-      let kinds = Map.remove !kinds namel in
-      let kinds = Map.set kinds ~key:namer ~data:(KRecord { fields; upper; lower }) in
+      begin match upper with
+        | Some upper ->
+          let extra = Set.diff lower upper in
+          if not (Set.is_empty extra)
+          then raise @@ Error (UnknownRecordAccess extra)
+          else ()
+        | None -> ()
+      end;
+
+      let kind = KRecord { fields; upper; lower } in
+      begin if Types.invalid_kind kind
+        then raise @@ Error (InvalidKind kind)
+        else ()
+      end;
+
+      let kinds = Map.set !kinds ~key:name ~data:kind in
       kinds, !subst
 
-    | (Some kind, None) ->
+    | _ -> raise @@ Error (MismatchedKinds (left, right))
+  in
+
+  kinds, subst
+
+and unify_kinds_by_name_exn kinds namel namer =
+  let kinds, subst =
+    match (Map.find kinds namel, Map.find kinds namer) with
+    | (Some left, Some right) ->
+      let kinds, subst = unify_kinds kinds namer left right in
       let kinds = Map.remove kinds namel in
+      (kinds, subst)
+
+    | (Some kind, None) ->
       let kinds = Map.set kinds ~key:namer ~data:kind in
+      let kinds = Map.remove kinds namel in
       kinds, Subst.empty
 
     | (None, Some _) ->
@@ -341,69 +359,60 @@ and unify_kinds_by_name_exn ?(depth=0) kinds namel namer =
 
     | (None, None) ->
       kinds, Subst.empty
-
-    | (Some kindl, Some kindr) ->
-      raise @@ Error (MismatchedKinds (kindl, kindr))
   in
-
-  printf "%skinds: %s\n" indent (Map.sexp_of_m__t (module String) (sexp_of_kind) kinds |> Sexp.to_string);
-
-  kinds, subst
+  (Map.map kinds ~f:(Subst.apply_kind subst), subst)
 
 (*
  * type solving
  *)
 
-let solve_exn expr =
+let solve_exn program =
+  (* gather constraints *)
   let ctx = Ctx.create () in
-  let env = Env.empty in
-  let typ = generate_typ ctx env expr in
-
-  print_endline "typ:";
-  Types.print typ;
-  print_endline "";
+  let env = List.fold program ~init:Env.empty ~f:(fun env -> function
+      | Ast.Expr expr ->
+        let typ = generate_typ ctx env expr in
+        let name = "!expr_" ^ (Ctx.fresh_type_name ctx) in
+        Env.set env name (typ, Ctx.ftv ctx typ)
+      | Ast.Assign (ident, expr) ->
+        let typ = generate_typ ctx env expr in
+        Env.set env ident (typ, Ctx.ftv ctx typ)
+    )
+  in
 
   let typ_constraints = Ctx.typ_constraints ctx in
   let kind_constraints = Ctx.kind_constraints ctx in
 
-  print_endline "typ constraints:";
-  typ_constraints
-  |> List.map ~f:(fun (typ, typ') -> [typ; typ'])
-  |> List.sexp_of_t (List.sexp_of_t sexp_of_typ)
-  |> Sexp.to_string_hum
-  |> print_endline;
-  print_endline "";
-
-  print_endline "kind constraints:";
-  kind_constraints
-  |> List.map ~f:(fun (name, kind) -> Sexp.List [sexp_of_string name; sexp_of_kind kind])
-  |> List.sexp_of_t Sexp.sexp_of_t
-  |> Sexp.to_string_hum
-  |> print_endline;
-  print_endline "";
-
   (* fold up the substitutions from unification of the constraints *)
-  let kinds = Map.of_alist_exn (module String) kind_constraints in
-  let kinds, subst = List.fold typ_constraints
-      ~init:(kinds, Subst.empty)
+  let kinds, subst =
+    kind_constraints
+    |> Map.to_alist
+    |> List.concat_map ~f:(fun (name, kinds) -> List.map kinds ~f:(fun kind -> (name, kind)))
+    |> List.fold ~init:(Map.empty (module String), Subst.empty)
+      ~f:(fun (kinds, subst) (name, kind) ->
+          match Map.find kinds name with
+          | None -> (Map.set kinds ~key:name ~data:kind, subst)
+          | Some kind' ->
+            let kinds', subst' = unify_kinds kinds name kind' kind in
+            (kinds', Subst.merge subst' subst)
+        )
+  in
+
+  let kinds, subst =
+    List.fold typ_constraints
+      ~init:(kinds, subst)
       ~f:(fun (kinds, subst) (left, right) ->
           let left = Subst.apply_typ subst left in
           let right = Subst.apply_typ subst right in
           let kinds', subst' = unify_typs_exn kinds left right in
-          print_endline "";
           kinds', Subst.merge subst' subst)
   in
 
-  print_endline "subst:";
-  Subst.print subst;
-  print_endline "";
-
+  (* apply the substitutions *)
   let kinds = Map.map kinds ~f:(Subst.apply_kind subst) in
-  let typ = Subst.apply_typ subst typ in
+  let env = Subst.apply_env subst env in
 
-  match Map.data kinds |> List.find ~f:Types.invalid_kind with
-  | Some kind -> raise @@ Error (InvalidKind kind)
-  | None -> (typ, kinds)
+  (env, kinds)
 
 let solve expr =
   try Ok (solve_exn expr) with

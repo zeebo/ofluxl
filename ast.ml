@@ -28,7 +28,6 @@ type expr =
   | Record of (string * expr) list
   | Select of expr * string
   | Index of expr * expr
-  | Assign of string * expr
   | Comp of expr * string * expr
   | And of expr * expr
   | Or of expr * expr
@@ -39,6 +38,12 @@ and default =
   | DPipe
 [@@deriving sexp]
 
-(* TODO: remove this by making pipe encode that it requires the
- * right hand expr to be a call *)
+type statement =
+  | Assign of string * expr
+  | Expr of expr
+[@@deriving sexp]
+
+type program = statement list
+[@@deriving sexp]
+
 exception Invalid of expr

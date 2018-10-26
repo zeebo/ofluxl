@@ -77,6 +77,7 @@ rule token = parse
     | '}'  { emit RIGHT_BRACE }
     | '='  { emit EQUAL }
     | ':'  { emit COLON }
+    | ';'  { emit SEMICOLON }
 
     (* operators *)
     | '+'  { emit PLUS }

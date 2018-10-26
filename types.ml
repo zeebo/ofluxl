@@ -18,7 +18,6 @@ and typ =
   | Basic of basic
   | List of typ
   | Func of func
-  | Record of tvar
   | Invalid
 
 and func =
@@ -45,9 +44,13 @@ and record =
   ; lower: Set.M(String).t
   }
 
+and scheme = typ * Set.M(String).t
+
 [@@deriving sexp]
 
-let print typ = print_endline @@ Sexp.to_string_hum @@ sexp_of_typ typ
+let print fn value = print_endline @@ Sexp.to_string_hum @@ fn value
+let print_typ = print sexp_of_typ
+let print_scheme = print sexp_of_scheme
 
 let rec occurs name = function
   | Variable tvar -> String.equal tvar name
@@ -55,7 +58,6 @@ let rec occurs name = function
   | List typ -> occurs name typ
   | Func { args; _ } -> Map.exists args ~f:(occurs name)
   | Invalid -> false
-  | Record tvar -> String.equal tvar name
 
 let invalid_kind = function
   | KCls _ -> false

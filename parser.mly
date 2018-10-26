@@ -8,31 +8,39 @@
 %token RETURN
 %token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX COMP
 %token <char> CHAR
-%token EOF
+%token SEMICOLON EOF
 
+%left RIGHT_PAREN_ARROW
 %left PLUS MINUS
 %left TIMES DIV
 %left COMP
 %left AND OR
 %left LEFT_PAREN
-%left RIGHT_PAREN_ARROW
-%nonassoc UMINUS
 %left LEFT_BRACKET DOT
-%left EQUAL
 %right PIPE
 %left RETURN
 
-%start <Ast.expr> main
+%start <Ast.program> main
 
 %%
 
-main: e = expr EOF { e };
+main:
+    | p = program EOF { p }
+    ;
+
+program:
+    | SEMICOLON* s = list(statement) { s }
+    ;
+
+statement:
+    | i = IDENT EQUAL e = expr SEMICOLON+ { Ast.Assign (i, e) }
+    | e = expr SEMICOLON+ { Ast.Expr e }
+    ;
 
 expr:
     | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
     | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
     | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
-    | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
     | f = FLOAT { Ast.Float f }
@@ -41,11 +49,11 @@ expr:
     | t = TIME { Ast.Time t }
     | r = REGEX { Ast.Regex r }
     | c = CHAR { Ast.Char c }
-    | e1 = expr PLUS  e2 = expr { Ast.Plus (e1, e2) }
+    | e1 = expr PLUS e2 = expr { Ast.Plus (e1, e2) }
     | e1 = expr MINUS e2 = expr { Ast.Minus (e1, e2) }
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
-    | MINUS e = expr %prec UMINUS { Ast.Uminus e }
+    | MINUS e = expr { Ast.Uminus e }
     | e1 = expr PIPE e2 = expr { Ast.Pipe (e1, e2) }
     | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
@@ -59,13 +67,14 @@ expr:
     ;
 
 colon_arg:
-    n = IDENT COLON e = expr { (n, e) };
+    | n = IDENT COLON e = expr { (n, e) }
+    ;
 
 func_param:
-    n = IDENT
-    d = func_param_default?
-    { (n, d) }
+    | n = IDENT d = func_param_default? { (n, d) }
+    ;
 
 func_param_default:
     | EQUAL PIPE_ARROW { Ast.DPipe }
     | EQUAL e = expr { Ast.DExpr e }
+    ;

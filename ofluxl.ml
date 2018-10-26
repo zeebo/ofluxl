@@ -11,20 +11,22 @@ let parse_str cont str = Lexing.from_string str |> parse cont
 let print = printf "%s"
 
 let sprint fn value = fn value |> Sexp.to_string_hum |> print
+let print_program = sprint Ast.sexp_of_program
+let print_env = sprint Env.sexp_of_t
 let print_expr = sprint Ast.sexp_of_expr
 let print_typ = sprint Types.sexp_of_typ
 let print_kind = sprint Types.sexp_of_kind
 let print_kinds = sprint (Map.sexp_of_m__t (module String) Types.sexp_of_kind)
 
-let solve expr =
-  print_endline "ast:";
-  print_expr expr;
+let solve program =
+  print_endline "program:";
+  print_program program;
   print_endline "\n";
 
-  let typ, kinds = Solve.solve_exn expr in
+  let env, kinds = Solve.solve_exn program in
 
-  print_endline "typ:";
-  print_typ typ;
+  print_endline "env:";
+  print_env env;
   print_endline "\n";
 
   print_endline "kinds:";
