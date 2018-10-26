@@ -222,29 +222,41 @@ let rec unify_typs_exn kinds left right =
     | (Func {args = argsl; table = tablel; required = requiredl; ret = retl },
        Func {args = argsr; table = tabler; required = requiredr; ret = retr }) as typs ->
 
-      let namesl = List.sort ~compare:String.compare @@ Map.keys argsl in
-      let namesr = List.sort ~compare:String.compare @@ Map.keys argsr in
-
       if not @@ Bool.equal tablel tabler ||
-         not @@ List.equal namesl namesr ~equal:String.equal ||
          not @@ Set.is_subset requiredl ~of_:requiredr
       then
         raise @@ Error (MismatchedTypes typs)
       else begin
-        List.fold namesl
+        Map.fold2 argsl argsr
           ~init:(unify_typs_exn kinds retl retr)
-          ~f:(fun (kinds, subst) name ->
-              let typl = Map.find_exn argsl name in
-              let typl = Subst.apply_typ subst typl in
-              let typr = Map.find_exn argsr name in
-              let typr = Subst.apply_typ subst typr in
-              let kinds, subst' = unify_typs_exn kinds typl typr in
-              kinds, Subst.merge subst' subst)
+          ~f:(fun ~key:name ~data:data (kinds, subst) ->
+              match data with
+              | `Right _ -> kinds, subst
+              | `Left _ ->
+                if Set.mem requiredl name
+                then raise @@ Error (MismatchedTypes typs)
+                else kinds, subst
+              | `Both (typl, typr) ->
+                let typl = Subst.apply_typ subst typl in
+                let typr = Subst.apply_typ subst typr in
+                let kinds, subst' = unify_typs_exn kinds typl typr in
+                kinds, Subst.merge subst' subst
+            )
       end
 
-    | (left, right) as typs ->
-      if phys_equal left right then kinds, Subst.empty
-      else raise @@ Error (MismatchedTypes typs)
+    | (Invalid, Invalid)
+    | (Basic Integer, Basic Integer)
+    | (Basic Float, Basic Float)
+    | (Basic Duration, Basic Duration)
+    | (Basic Time, Basic Time)
+    | (Basic Regex, Basic Regex)
+    | (Basic Char, Basic Char)
+    | (Basic String, Basic String)
+    | (Basic Bool, Basic Bool)
+    | (Basic Table, Basic Table) -> kinds, Subst.empty
+
+    | (Func _, _) | (List _, _) | (Basic _, _) | (Invalid, _) as typs ->
+      raise @@ Error (MismatchedTypes typs)
   in
 
   (Map.map kinds ~f:(Subst.apply_kind subst), subst)

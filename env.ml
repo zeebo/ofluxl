@@ -11,6 +11,12 @@ let empty: t =
   Map.of_alist_exn (module String)
     [ mk "true" @@ Basic Bool
     ; mk "false" @@ Basic Bool
+    ; mk "gen" @@ Func
+        { args = Map.empty (module String)
+        ; table = false
+        ; required = Set.empty (module String)
+        ; ret = Basic Table
+        }
     ]
 
 let insert (env: t) args: t =

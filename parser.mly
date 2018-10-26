@@ -15,9 +15,9 @@
 %left TIMES DIV
 %left COMP
 %left AND OR
+%right PIPE
 %left LEFT_PAREN
 %left LEFT_BRACKET DOT
-%right PIPE
 %left RETURN
 
 %start <Ast.program> main

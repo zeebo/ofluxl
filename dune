@@ -9,8 +9,6 @@
 
 (executable
     (name ofluxl)
-    ; (preprocess (pps ppx_jane js_of_ocaml-ppx))
-    ; (libraries base stdio menhirLib js_of_ocaml)
-    (preprocess (pps ppx_jane))
-    (libraries base stdio menhirLib)
+    (preprocess (pps ppx_jane js_of_ocaml-ppx))
+    (libraries base stdio menhirLib js_of_ocaml)
 )
