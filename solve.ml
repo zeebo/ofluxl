@@ -1,6 +1,8 @@
 open Std
 open Types
 
+let gone = ref false
+
 type error =
   | Infinite of (tvar * typ)
   | MismatchedKinds of (kind * kind)
@@ -206,9 +208,10 @@ let rec unify_typs_exn kinds left right =
   let kinds, subst = match (left, right) with
     | (Variable namel, Variable namer) ->
       if String.equal namel namer then kinds, Subst.empty
-      else
+      else begin
         let kinds, subst = unify_kinds_by_name_exn kinds namel namer in
-        kinds, Subst.merge subst (Subst.singleton namel (Variable namer))
+        kinds, Subst.merge (Subst.singleton namel (Variable namer)) subst
+      end
 
     | (Variable name, typ)
     | (typ, Variable name) ->
@@ -222,6 +225,7 @@ let rec unify_typs_exn kinds left right =
     | (Func {args = argsl; table = tablel; required = requiredl; ret = retl },
        Func {args = argsr; table = tabler; required = requiredr; ret = retr }) as typs ->
 
+      (* TODO: allow calls with the table being explicitly specified *)
       if not @@ Bool.equal tablel tabler ||
          not @@ Set.is_subset requiredl ~of_:requiredr
       then
@@ -231,11 +235,12 @@ let rec unify_typs_exn kinds left right =
           ~init:(unify_typs_exn kinds retl retr)
           ~f:(fun ~key:name ~data:data (kinds, subst) ->
               match data with
-              | `Right _ -> kinds, subst
               | `Left _ ->
                 if Set.mem requiredl name
                 then raise @@ Error (MismatchedTypes typs)
                 else kinds, subst
+              | `Right _ ->
+                raise @@ Error (MismatchedTypes typs)
               | `Both (typl, typr) ->
                 let typl = Subst.apply_typ subst typl in
                 let typr = Subst.apply_typ subst typr in
@@ -288,8 +293,8 @@ and unify_kinds_by_typ_exn kinds name typ =
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
     end
 
-and unify_kinds kinds name left right =
-  let set data = Map.set kinds ~key:name ~data in
+and unify_kinds kinds namel namer left right =
+  let set data = Map.set kinds ~key:namer ~data in
 
   let kinds, subst =
     match (left, right) with
@@ -345,21 +350,23 @@ and unify_kinds kinds name left right =
         else ()
       end;
 
-      let kinds = Map.set !kinds ~key:name ~data:kind in
+      let kinds = Map.set !kinds ~key:namer ~data:kind in
       kinds, !subst
 
     | _ -> raise @@ Error (MismatchedKinds (left, right))
   in
 
-  kinds, subst
+  (* remove the left name if it exists and is distinct *)
+  if not (String.equal namel namer) then
+    Map.remove kinds namel, subst
+  else
+    kinds, subst
 
 and unify_kinds_by_name_exn kinds namel namer =
   let kinds, subst =
     match (Map.find kinds namel, Map.find kinds namer) with
     | (Some left, Some right) ->
-      let kinds, subst = unify_kinds kinds namer left right in
-      let kinds = Map.remove kinds namel in
-      (kinds, subst)
+      unify_kinds kinds namel namer left right
 
     | (Some kind, None) ->
       let kinds = Map.set kinds ~key:namer ~data:kind in
@@ -385,7 +392,7 @@ let solve_exn program =
       | Ast.Expr expr ->
         let typ = generate_typ ctx env expr in
         let name = "!expr_" ^ (Ctx.fresh_type_name ctx) in
-        Env.set env name (typ, Ctx.ftv ctx typ)
+        Env.set env name (typ, Set.empty (module String))
       | Ast.Assign (ident, expr) ->
         let typ = generate_typ ctx env expr in
         Env.set env ident (typ, Ctx.ftv ctx typ)
@@ -396,16 +403,21 @@ let solve_exn program =
   let kind_constraints = Ctx.kind_constraints ctx in
 
   (* fold up the substitutions from unification of the constraints *)
-  let kinds, subst =
+  let kind_constraints =
     kind_constraints
     |> Map.to_alist
     |> List.concat_map ~f:(fun (name, kinds) -> List.map kinds ~f:(fun kind -> (name, kind)))
-    |> List.fold ~init:(Map.empty (module String), Subst.empty)
+  in
+  let kinds = Map.of_alist_reduce (module String) kind_constraints ~f:(fun a _ -> a) in
+
+  let kinds, subst = List.fold kind_constraints
+      ~init:(kinds, Subst.empty)
       ~f:(fun (kinds, subst) (name, kind) ->
-          match Map.find kinds name with
-          | None -> (Map.set kinds ~key:name ~data:kind, subst)
+          let name' = Subst.apply_name subst name in
+          match Map.find kinds name' with
+          | None -> kinds, subst
           | Some kind' ->
-            let kinds', subst' = unify_kinds kinds name kind' kind in
+            let kinds', subst' = unify_kinds kinds name name' kind kind' in
             (kinds', Subst.merge subst' subst)
         )
   in

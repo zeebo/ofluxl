@@ -82,8 +82,8 @@ let inst ctx (typ, ftv) =
   List.iter ctx.typ_constraints ~f:(fun (left, right) ->
       let left' = Subst.apply_typ subst left in
       let right' = Subst.apply_typ subst right in
-      match (phys_equal left left', phys_equal right right') with
-      | (true, true) -> ()
+      match (compare_typ left left', compare_typ right right') with
+      | (0, 0) -> ()
       | _ -> add_typ_constraint ctx (left', right'));
 
   (* apply the substitution to the type *)

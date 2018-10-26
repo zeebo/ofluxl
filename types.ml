@@ -46,7 +46,7 @@ and record =
 
 and scheme = typ * Set.M(String).t
 
-[@@deriving sexp]
+[@@deriving sexp, compare]
 
 let print fn value = print_endline @@ Sexp.to_string_hum @@ fn value
 let print_typ = print sexp_of_typ
