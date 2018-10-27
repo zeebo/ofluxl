@@ -1,90 +1,106 @@
 open Std
 open Types
 
+type constr =
+  | Type of typ
+  | Kind of kind
+[@@deriving sexp]
+
 type t =
-  { mutable typ_constraints : (typ * typ) list
-  ; mutable kind_constraints : kind list Map.M(String).t
+  { mutable constraints : (Tvar.t * constr) list
   ; mutable num: int
+  ; kinds_index: kind list Hashtbl.M(Tvar).t
   }
 [@@deriving sexp]
 
-let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
-
+(* create an empty type inference context *)
 let create (): t =
-  { typ_constraints = []
-  ; kind_constraints = Map.empty (module String)
+  { constraints = []
   ; num = 0
+  ; kinds_index = Hashtbl.create (module Tvar)
   }
 
-let typ_constraints { typ_constraints; _ } = typ_constraints
-let kind_constraints { kind_constraints; _ } = kind_constraints
+(* add a type constraint into the context *)
+let add_typ_constraint ctx name typ =
+  ctx.constraints <- (name, Type typ) :: ctx.constraints
 
-let add_typ_constraint ctx (left, right) =
-  ctx.typ_constraints <- (left, right) :: ctx.typ_constraints
+(* add a kind constraint into the context *)
+let add_kind_constraint ctx name kind =
+  ctx.constraints <- (name, Kind kind) :: ctx.constraints;
+  Hashtbl.update ctx.kinds_index name ~f:(function
+      | Some kinds -> kind :: kinds
+      | None -> [kind])
 
-let add_kind_constraint ctx (name, kind) =
-  ctx.kind_constraints <-
-    Map.update ctx.kind_constraints name ~f:(function
-        | Some kinds -> kind :: kinds
-        | None -> [kind])
-
-let fresh_type_name ctx =
+(* creates a new type and returns the tvar for it *)
+let fresh_type ctx =
   ctx.num <- ctx.num + 1;
-  Printf.sprintf "a%d" ctx.num
+  sprintf "a%d" ctx.num
 
-let rec ftv ctx = function
+let empty_ftv = Set.empty (module Tvar)
+
+(* TODO: i don't allow assignments inside of function bodies
+ * which means that i don't have to consider the free type
+ * variables of the environment when computing the free type
+ * variables of some type. we need to subtract out all of
+ * the free type variables in the environment if that changes
+*)
+
+(* compute the free type variables of a list of things. we define
+ * this first because recursion can cause loss of generality.
+*)
+let ftv_list items ~f =
+  List.map items ~f |> Set.union_list (module Tvar)
+
+(* compute the free type variables in a type *)
+let rec ftv_typ ctx = function
+  | Basic _ -> empty_ftv
+  | Invalid -> empty_ftv
+  | List typ -> ftv_typ ctx typ
+
   | Variable name ->
-    let ftv = match Map.find ctx.kind_constraints name with
-      | Some kinds ->
-        List.fold kinds
-          ~init:(Set.empty (module String))
-          ~f:(fun ftv kind -> Set.union ftv (ftv_kind ctx kind))
-      | None -> Set.empty (module String)
-    in Set.add ftv name
+    Set.add (
+      match Hashtbl.find ctx.kinds_index name with
+      | Some kinds -> ftv_list kinds ~f:(ftv_kind ctx)
+      | None -> empty_ftv
+    ) name
 
-  | Basic _ | Invalid -> Set.empty (module String)
-  | List typ -> ftv ctx typ
   | Func { args; ret; _ } ->
-    args
-    |> Map.data
-    |> List.map ~f:(ftv ctx)
-    |> List.fold ~init:(Set.empty (module String)) ~f:Set.union
-    |> Set.union (ftv ctx ret)
+    ftv_list (Map.data args) ~f:(ftv_typ ctx)
+    |> Set.union (ftv_typ ctx ret)
 
+(* compute the free type variables in a kind *)
 and ftv_kind ctx = function
+  | KCls _ -> empty_ftv
   | KRecord { fields; _ } ->
-    fields
-    |> Map.data
-    |> List.map ~f:(ftv ctx)
-    |> List.fold ~init:(Set.empty (module String)) ~f:Set.union
+    ftv_list (Map.data fields) ~f:(ftv_typ ctx)
 
-  | _ -> Set.empty (module String)
 
+(* instantiate a scheme. may add type and kind constraints. *)
 let inst ctx (typ, ftv) =
-  (* create a substitution for the free type variables to be fresh *)
-  let subst = Set.fold ftv ~init:Subst.empty ~f:(fun subst name ->
-      let name' = fresh_type_name ctx in
-      let subst' = Subst.singleton name (Variable name') in
-      Subst.merge subst subst')
+  let subst = Set.fold ftv ~init:Subst.empty
+      ~f:(fun subst name -> Subst.add subst name (fresh_type ctx))
   in
-
-  (* copy in all of the kind constraints for the new type variables *)
-  Set.iter ftv ~f:(fun name ->
-      match Map.find ctx.kind_constraints name with
-      | Some kinds ->
-        List.iter kinds ~f:(fun kind ->
-            let name' = Subst.apply_name subst name in
-            let kind' = Subst.apply_kind subst kind in
-            add_kind_constraint ctx (name', kind'))
-      | None -> ());
-
-  (* copy in all of the type constraints for the new type variables *)
-  List.iter ctx.typ_constraints ~f:(fun (left, right) ->
-      let left' = Subst.apply_typ subst left in
-      let right' = Subst.apply_typ subst right in
-      match (compare_typ left left', compare_typ right right') with
-      | (0, 0) -> ()
-      | _ -> add_typ_constraint ctx (left', right'));
-
-  (* apply the substitution to the type *)
+  List.iter ctx.constraints ~f:(fun (name, constr) ->
+      match (Set.mem ftv name, constr) with
+      | (true, Type typ) ->
+        let name' = Subst.apply_name subst name in
+        let typ' = Subst.apply_typ subst typ in
+        add_typ_constraint ctx name' typ'
+      | (true, Kind kind) ->
+        let name' = Subst.apply_name subst name in
+        let kind' = Subst.apply_kind subst kind in
+        add_kind_constraint ctx name' kind'
+      | _ -> ());
   Subst.apply_typ subst typ
+
+(* walks and consumes all constraints added.
+ * the callback is allowed to add more constraints
+ * and they will be walked
+*)
+let rec apply ctx fn =
+  match ctx.constraints with
+  | [] -> ()
+  | (name, constr) :: constrs ->
+    ctx.constraints <- constrs;
+    fn name constr;
+    apply ctx fn

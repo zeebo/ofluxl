@@ -1,8 +1,8 @@
 open Std
 
-type tvar = string
+module Tvar = struct include String end
 
-and basic =
+type basic =
   | Integer
   | Float
   | Duration
@@ -14,7 +14,7 @@ and basic =
   | Table
 
 and typ =
-  | Variable of tvar
+  | Variable of Tvar.t
   | Basic of basic
   | List of typ
   | Func of func
@@ -66,4 +66,3 @@ let invalid_kind = function
         match Map.find fields field with
         | Some Invalid -> true
         | _ -> false)
-

@@ -8,9 +8,6 @@ let parse cont lexbuf =
 let parse_stdin cont = Lexing.from_channel Stdio.stdin |> parse cont
 let parse_str cont str = Lexing.from_string str |> parse cont
 
-let print = printf "%s"
-
-let sprint fn value = fn value |> Sexp.to_string_hum |> print
 let print_program = sprint Ast.sexp_of_program
 let print_env = sprint Env.sexp_of_t
 let print_expr = sprint Ast.sexp_of_expr

@@ -25,7 +25,7 @@ let add_kind_constraint ctx typ kind =
   | Variable name -> Ctx.add_kind_constraint ctx (name, kind)
   | _ -> ()
 
-let rec generate_typ ctx env = function
+let rec generate_typ_exn ctx env = function
   (* identifier lookup *)
   | Ast.Ident ident -> begin
       match Env.find env ident with
@@ -34,23 +34,23 @@ let rec generate_typ ctx env = function
     end
 
   (* basic types *)
-  | Ast.Integer _ -> Basic Integer
-  | Ast.Float _ -> Basic Float
+  | Ast.Integer _  -> Basic Integer
+  | Ast.Float _    -> Basic Float
   | Ast.Duration _ -> Basic Duration
-  | Ast.Time _ -> Basic Time
-  | Ast.Regex _ -> Basic Regex
-  | Ast.Char _ -> Basic Char
-  | Ast.String _ -> Basic String
+  | Ast.Time _     -> Basic Time
+  | Ast.Regex _    -> Basic Regex
+  | Ast.Char _     -> Basic Char
+  | Ast.String _   -> Basic String
 
   (* math expressions *)
   | Ast.Uminus expr ->
-    let typ = generate_typ ctx env expr in
+    let typ = generate_typ_exn ctx env expr in
     add_kind_constraint ctx typ @@ KCls Num;
     typ
 
   | Ast.Plus (left, right) ->
-    let typl = generate_typ ctx env left in
-    let typr = generate_typ ctx env right in
+    let typl = generate_typ_exn ctx env left in
+    let typr = generate_typ_exn ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
     add_kind_constraint ctx typl @@ KCls Add;
     add_kind_constraint ctx typr @@ KCls Add;
@@ -59,8 +59,8 @@ let rec generate_typ ctx env = function
   | Ast.Minus (left, right)
   | Ast.Times (left, right)
   | Ast.Div (left, right) ->
-    let typl = generate_typ ctx env left in
-    let typr = generate_typ ctx env right in
+    let typl = generate_typ_exn ctx env left in
+    let typr = generate_typ_exn ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
     add_kind_constraint ctx typl @@ KCls Num;
     add_kind_constraint ctx typr @@ KCls Num;
@@ -69,8 +69,8 @@ let rec generate_typ ctx env = function
   (* logical operations *)
   | Ast.And (left, right)
   | Ast.Or (left, right) ->
-    let typl = generate_typ ctx env left in
-    let typr = generate_typ ctx env right in
+    let typl = generate_typ_exn ctx env left in
+    let typr = generate_typ_exn ctx env right in
     Ctx.add_typ_constraint ctx (typl, Basic Bool);
     Ctx.add_typ_constraint ctx (typr, Basic Bool);
     Basic Bool
@@ -80,11 +80,11 @@ let rec generate_typ ctx env = function
     let args, table, required = generate_func_args ctx env args in
     let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module String))) in
     let env' = Env.insert env schemes in
-    let ret = generate_typ ctx env' body in
+    let ret = generate_typ_exn ctx env' body in
     Func { args; table; required; ret }
 
   | Ast.Call (expr, args) ->
-    let typl = generate_typ ctx env expr in
+    let typl = generate_typ_exn ctx env expr in
     let args, required = generate_call_args ctx env args in
     let ret = Variable (Ctx.fresh_type_name ctx) in
     (* TODO: can you call a function with a `in=<-` style argument somehow? *)
@@ -92,8 +92,8 @@ let rec generate_typ ctx env = function
     ret
 
   | Ast.Pipe (left, Ast.Call (right, args)) ->
-    let typl = generate_typ ctx env left in
-    let typr = generate_typ ctx env right in
+    let typl = generate_typ_exn ctx env left in
+    let typr = generate_typ_exn ctx env right in
     let args, required = generate_call_args ctx env args in
     let ret = Variable (Ctx.fresh_type_name ctx) in
     Ctx.add_typ_constraint ctx (typl, Basic Table);
@@ -104,13 +104,12 @@ let rec generate_typ ctx env = function
     (* if the right side of the pipe isn't a call, it's a problem *)
     raise (Ast.Invalid expr)
 
-  | Ast.Return expr -> generate_typ ctx env expr
+  | Ast.Return expr -> generate_typ_exn ctx env expr
 
   (* composite types *)
   | Ast.List exprs ->
     let typ = Variable (Ctx.fresh_type_name ctx) in
-    let typs = List.map exprs ~f:(generate_typ ctx env) in
-    (* for now, assume lists are homogenous (??) *)
+    let typs = List.map exprs ~f:(generate_typ_exn ctx env) in
     List.iter typs ~f:(fun typ' -> Ctx.add_typ_constraint ctx (typ, typ'));
     List typ
 
@@ -127,7 +126,7 @@ let rec generate_typ ctx env = function
   (* projections *)
   | Ast.Select (expr, field) ->
     let typf = Variable (Ctx.fresh_type_name ctx) in
-    begin match generate_typ ctx env expr with
+    begin match generate_typ_exn ctx env expr with
       | Variable name ->
         Ctx.add_kind_constraint ctx
           (name, KRecord { fields = Map.singleton (module String) field typf
@@ -135,21 +134,21 @@ let rec generate_typ ctx env = function
                          ; upper = None (* universe *)
                          });
       | _ as typ -> raise @@ Error (InvalidType typ)
-    end ;
+    end;
     typf
 
   | Ast.Index (expr, index) ->
     let typ = Variable (Ctx.fresh_type_name ctx) in
-    let typl = generate_typ ctx env expr in
-    let typi = generate_typ ctx env index in
+    let typl = generate_typ_exn ctx env expr in
+    let typi = generate_typ_exn ctx env index in
     Ctx.add_typ_constraint ctx (typl, List typ);
     Ctx.add_typ_constraint ctx (typi, Basic Integer);
     typ
 
   (* comparisons *)
   | Ast.Comp (left, _, right) ->
-    let typl = generate_typ ctx env left in
-    let typr = generate_typ ctx env right in
+    let typl = generate_typ_exn ctx env left in
+    let typr = generate_typ_exn ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
     add_kind_constraint ctx typl @@ KCls Cmp;
     add_kind_constraint ctx typr @@ KCls Cmp;
@@ -157,23 +156,20 @@ let rec generate_typ ctx env = function
 
 (* generate a type for a given default argument *)
 and generate_default ctx env = function
-  | Some (Ast.DExpr expr) -> generate_typ ctx env expr
+  | Some (Ast.DExpr expr) -> generate_typ_exn ctx env expr
   | Some Ast.DPipe -> Basic Table
   | None -> Variable (Ctx.fresh_type_name ctx)
 
 (* generate a type for a function *)
 and generate_func_args ctx env args =
-  let table =
-    args
-    |> List.exists ~f:(fun (_, def) ->
-        match def with
-        | Some Ast.DPipe -> true
-        | _ -> false)
+  let table = List.exists args ~f:(fun (_, def) ->
+      match def with
+      | Some Ast.DPipe -> true
+      | _ -> false)
   in
 
   let required =
-    args
-    |> List.filter_map ~f:(fun (name, def) ->
+    List.filter_map args ~f:(fun (name, def) ->
         match def with
         | Some _ -> None
         | None -> Some name)
@@ -181,8 +177,8 @@ and generate_func_args ctx env args =
   in
 
   let args =
-    args
-    |> List.map ~f:(fun (name, def) -> (name, generate_default ctx env def))
+    List.map args ~f:(fun (name, def) ->
+        (name, generate_default ctx env def))
     |> Map.of_alist_exn (module String)
   in
 
@@ -191,8 +187,8 @@ and generate_func_args ctx env args =
 (* generate a type for a call *)
 and generate_call_args ctx env args =
   let args =
-    args
-    |> List.map ~f:(fun (name, expr) -> (name, generate_typ ctx env expr))
+    List.map args ~f:(fun (name, expr) ->
+        (name, generate_typ_exn ctx env expr))
     |> Map.of_alist_exn (module String)
   in
 
@@ -384,15 +380,15 @@ and unify_kinds_by_name_exn kinds namel namer =
  *)
 
 let solve_exn program =
-  (* gather constraints *)
+  (* gather constraints and environment *)
   let ctx = Ctx.create () in
   let env = List.fold program ~init:Env.empty ~f:(fun env -> function
       | Ast.Expr expr ->
-        let typ = generate_typ ctx env expr in
+        let typ = generate_typ_exn ctx env expr in
         let name = "!expr_" ^ (Ctx.fresh_type_name ctx) in
         Env.set env name (typ, Set.empty (module String))
       | Ast.Assign (ident, expr) ->
-        let typ = generate_typ ctx env expr in
+        let typ = generate_typ_exn ctx env expr in
         Env.set env ident (typ, Ctx.ftv ctx typ)
     )
   in
