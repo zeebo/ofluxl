@@ -16,7 +16,7 @@ let print_env = sprint Env.sexp_of_t
 let print_expr = sprint Ast.sexp_of_expr
 let print_typ = sprint Types.sexp_of_typ
 let print_kind = sprint Types.sexp_of_kind
-let print_kinds = sprint (Map.sexp_of_m__t (module String) Types.sexp_of_kind)
+let print_kinds = sprint (Map.sexp_of_m__t (module Types.Tvar) Types.sexp_of_kind)
 
 let solve program =
   print_endline "program:";

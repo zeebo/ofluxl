@@ -2,7 +2,7 @@ open Std
 open Types
 
 type error =
-  | Infinite of (tvar * typ)
+  | Infinite of (Tvar.t * typ)
   | MismatchedKinds of (kind * kind)
   | MismatchedTypes of (typ * typ)
   | InvalidSubst of (string * typ)
@@ -78,7 +78,7 @@ let rec generate_typ ctx env = function
   (* function support *)
   | Ast.Func (args, body) ->
     let args, table, required = generate_func_args ctx env args in
-    let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module String))) in
+    let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module Tvar))) in
     let env' = Env.insert env schemes in
     let ret = generate_typ ctx env' body in
     Func { args; table; required; ret }
@@ -205,7 +205,7 @@ and generate_call_args ctx env args =
 let rec unify_typs_exn kinds left right =
   let kinds, subst = match (left, right) with
     | (Variable namel, Variable namer) ->
-      if String.equal namel namer then kinds, Subst.empty
+      if Tvar.equal namel namer then kinds, Subst.empty
       else begin
         let kinds, subst = unify_kinds_by_name_exn kinds namel namer in
         kinds, Subst.merge (Subst.singleton namel (Variable namer)) subst
@@ -355,7 +355,7 @@ and unify_kinds kinds namel namer left right =
   in
 
   (* remove the left name if it exists and is distinct *)
-  if not (String.equal namel namer) then
+  if not (Tvar.equal namel namer) then
     Map.remove kinds namel, subst
   else
     kinds, subst
@@ -389,8 +389,8 @@ let solve_exn program =
   let env = List.fold program ~init:Env.empty ~f:(fun env -> function
       | Ast.Expr expr ->
         let typ = generate_typ ctx env expr in
-        let name = "!expr_" ^ (Ctx.fresh_type_name ctx) in
-        Env.set env name (typ, Set.empty (module String))
+        let name = "!expr_" ^ (Tvar.to_string (Ctx.fresh_type_name ctx)) in
+        Env.set env name (typ, Set.empty (module Tvar))
       | Ast.Assign (ident, expr) ->
         let typ = generate_typ ctx env expr in
         Env.set env ident (typ, Ctx.ftv ctx typ)
@@ -406,7 +406,7 @@ let solve_exn program =
     |> Map.to_alist
     |> List.concat_map ~f:(fun (name, kinds) -> List.map kinds ~f:(fun kind -> (name, kind)))
   in
-  let kinds = Map.of_alist_reduce (module String) kind_constraints ~f:(fun a _ -> a) in
+  let kinds = Map.of_alist_reduce (module Tvar) kind_constraints ~f:(fun a _ -> a) in
 
   let kinds, subst = List.fold kind_constraints
       ~init:(kinds, Subst.empty)

@@ -1,6 +1,23 @@
 open Std
 
-type tvar = string
+module Tvar: sig
+  type t [@@deriving sexp_of, compare]
+  include Comparator.S with type t := t
+  val equal: t -> t -> bool
+  val of_string: string -> t
+  val to_string: t -> string
+end = struct
+  include String
+  let of_string t = t
+  let to_string t = t
+end
+
+type typ =
+  | Variable of Tvar.t
+  | Basic of basic
+  | List of typ
+  | Func of func
+  | Invalid
 
 and basic =
   | Integer
@@ -12,13 +29,6 @@ and basic =
   | String
   | Bool
   | Table
-
-and typ =
-  | Variable of tvar
-  | Basic of basic
-  | List of typ
-  | Func of func
-  | Invalid
 
 and func =
   { args: typ Map.M(String).t
@@ -44,11 +54,11 @@ and record =
   }
 [@@deriving sexp_of]
 
-type scheme = typ * Set.M(String).t
+type scheme = typ * Set.M(Tvar).t
 [@@deriving sexp_of]
 
 let rec occurs name = function
-  | Variable tvar -> String.equal tvar name
+  | Variable tvar -> Tvar.equal tvar name
   | Basic _ -> false
   | List typ -> occurs name typ
   | Func { args; _ } -> Map.exists args ~f:(occurs name)

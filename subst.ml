@@ -1,17 +1,17 @@
 open Std
 open Types
 
-type t = typ Map.M(String).t [@@deriving sexp_of]
+type t = typ Map.M(Tvar).t [@@deriving sexp_of]
 
-let empty: t = Map.empty (module String)
+let empty: t = Map.empty (module Tvar)
 
-let singleton name typ: t = Map.singleton (module String) name typ
+let singleton name typ: t = Map.singleton (module Tvar) name typ
 
 let rec subst_typ name typ = function
   | Basic _ as typ -> typ
   | Invalid as typ -> typ
   | List typ' -> List (subst_typ name typ typ')
-  | Variable name' as typ' -> if String.equal name' name then typ else typ'
+  | Variable name' as typ' -> if Tvar.equal name' name then typ else typ'
   | Func { args; table; required; ret } ->
     Func { args = Map.map args ~f:(subst_typ name typ)
          ; table

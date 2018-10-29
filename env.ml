@@ -6,7 +6,7 @@ type t = scheme Map.M(String).t [@@deriving sexp_of]
 let print env = print_endline @@ Sexp.to_string_hum @@ sexp_of_t env
 
 let empty: t =
-  let mk name typ = (name, (typ, Set.empty (module String))) in
+  let mk name typ = (name, (typ, Set.empty (module Tvar))) in
   Map.of_alist_exn (module String)
     [ mk "true" @@ Basic Bool
     ; mk "false" @@ Basic Bool

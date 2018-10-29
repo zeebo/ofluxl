@@ -3,14 +3,14 @@ open Types
 
 type t =
   { mutable typ_constraints : (typ * typ) list
-  ; mutable kind_constraints : kind list Map.M(String).t
+  ; mutable kind_constraints : kind list Map.M(Tvar).t
   ; mutable num: int
   }
 [@@deriving sexp_of]
 
 let create (): t =
   { typ_constraints = []
-  ; kind_constraints = Map.empty (module String)
+  ; kind_constraints = Map.empty (module Tvar)
   ; num = 0
   }
 
@@ -28,25 +28,25 @@ let add_kind_constraint ctx (name, kind) =
 
 let fresh_type_name ctx =
   ctx.num <- ctx.num + 1;
-  Printf.sprintf "a%d" ctx.num
+  Tvar.of_string @@ Printf.sprintf "a%d" ctx.num
 
 let rec ftv ctx = function
   | Variable name ->
     let ftv = match Map.find ctx.kind_constraints name with
       | Some kinds ->
         List.fold kinds
-          ~init:(Set.empty (module String))
+          ~init:(Set.empty (module Tvar))
           ~f:(fun ftv kind -> Set.union ftv (ftv_kind ctx kind))
-      | None -> Set.empty (module String)
+      | None -> Set.empty (module Tvar)
     in Set.add ftv name
 
-  | Basic _ | Invalid -> Set.empty (module String)
+  | Basic _ | Invalid -> Set.empty (module Tvar)
   | List typ -> ftv ctx typ
   | Func { args; ret; _ } ->
     args
     |> Map.data
     |> List.map ~f:(ftv ctx)
-    |> List.fold ~init:(Set.empty (module String)) ~f:Set.union
+    |> List.fold ~init:(Set.empty (module Tvar)) ~f:Set.union
     |> Set.union (ftv ctx ret)
 
 and ftv_kind ctx = function
@@ -54,9 +54,9 @@ and ftv_kind ctx = function
     fields
     |> Map.data
     |> List.map ~f:(ftv ctx)
-    |> List.fold ~init:(Set.empty (module String)) ~f:Set.union
+    |> List.fold ~init:(Set.empty (module Tvar)) ~f:Set.union
 
-  | _ -> Set.empty (module String)
+  | _ -> Set.empty (module Tvar)
 
 let inst ctx (typ, ftv) =
   (* create a substitution for the free type variables to be fresh *)
