@@ -11,10 +11,10 @@ type error =
   | InvalidType of typ
   | UnknownIdentifier of string
   | UnknownRecordAccess of Set.M(String).t
-[@@deriving sexp]
+[@@deriving sexp_of]
 
 exception Error of error
-[@@deriving sexp]
+[@@deriving sexp_of]
 
 (*
  * constraint generation

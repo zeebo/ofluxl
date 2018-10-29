@@ -26,31 +26,26 @@ and func =
   ; required: Set.M(String).t
   ; ret: typ
   }
+[@@deriving sexp_of, compare]
 
-and kind =
+type kind =
   | KRecord of record
   | KCls of cls
 
-(* it is important for unification that these classes
- * have a strict containment heirarchy *)
 and cls =
-  | Cmp (* most basics, strings, numbers *)
-  | Add (* strings, numbers *)
-  | Num (* numbers *)
+  | Cmp
+  | Add
+  | Num
 
 and record =
   { fields: typ Map.M(String).t
   ; upper: Set.M(String).t option
   ; lower: Set.M(String).t
   }
+[@@deriving sexp_of]
 
-and scheme = typ * Set.M(String).t
-
-[@@deriving sexp, compare]
-
-let print fn value = print_endline @@ Sexp.to_string_hum @@ fn value
-let print_typ = print sexp_of_typ
-let print_scheme = print sexp_of_scheme
+type scheme = typ * Set.M(String).t
+[@@deriving sexp_of]
 
 let rec occurs name = function
   | Variable tvar -> String.equal tvar name

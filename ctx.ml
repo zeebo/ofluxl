@@ -6,9 +6,7 @@ type t =
   ; mutable kind_constraints : kind list Map.M(String).t
   ; mutable num: int
   }
-[@@deriving sexp]
-
-let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
+[@@deriving sexp_of]
 
 let create (): t =
   { typ_constraints = []

@@ -1,8 +1,7 @@
 open Std
 open Types
 
-type t = scheme Map.M(String).t
-[@@deriving sexp]
+type t = scheme Map.M(String).t [@@deriving sexp_of]
 
 let print env = print_endline @@ Sexp.to_string_hum @@ sexp_of_t env
 

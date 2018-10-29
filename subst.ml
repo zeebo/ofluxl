@@ -1,10 +1,7 @@
 open Std
 open Types
 
-type t = typ Map.M(String).t
-[@@deriving sexp]
-
-let print ctx = print_endline @@ Sexp.to_string_hum @@ sexp_of_t ctx
+type t = typ Map.M(String).t [@@deriving sexp_of]
 
 let empty: t = Map.empty (module String)
 
