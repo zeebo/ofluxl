@@ -1,14 +1,13 @@
 open Std
-open Types
 
-type t = typ Map.M(Tvar).t [@@deriving sexp_of]
+type t = Type.t Map.M(Tvar).t [@@deriving sexp_of]
 
 let empty: t = Map.empty (module Tvar)
 
 let singleton name typ: t = Map.singleton (module Tvar) name typ
 
 let rec subst_typ name typ = function
-  | Basic _ as typ -> typ
+  | Type.Basic _ as typ -> typ
   | Invalid as typ -> typ
   | List typ' -> List (subst_typ name typ typ')
   | Variable name' as typ' -> if Tvar.equal name' name then typ else typ'
@@ -19,18 +18,14 @@ let rec subst_typ name typ = function
          ; ret = subst_typ name typ ret
          }
 
-let subst_kind name typ kind =
-  match kind with
-  | KCls _ as kind -> kind
-  | KRecord { fields; upper; lower } ->
-    KRecord { fields = Map.map fields ~f:(subst_typ name typ)
-            ; upper
-            ; lower
-            }
+let subst_kind name typ = function
+  | Kind.Cls _ as kind -> kind
+  | Record ({ fields; _ } as record) ->
+    Record { record with fields = Map.map fields ~f:(subst_typ name typ) }
 
 let subst_scheme name typ (typ', ftv) =
   let ftv = match (Set.mem ftv name, typ) with
-    | (true, Variable name') -> Set.add ftv name'
+    | (true, Type.Variable name') -> Set.add ftv name'
     | _ -> ftv
   in
   let ftv = Set.remove ftv name in

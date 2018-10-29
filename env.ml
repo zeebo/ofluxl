@@ -1,16 +1,15 @@
 open Std
-open Types
 
-type t = scheme Map.M(String).t [@@deriving sexp_of]
+type t = Scheme.t Map.M(String).t [@@deriving sexp_of]
 
 let print env = print_endline @@ Sexp.to_string_hum @@ sexp_of_t env
 
 let empty: t =
   let mk name typ = (name, (typ, Set.empty (module Tvar))) in
   Map.of_alist_exn (module String)
-    [ mk "true" @@ Basic Bool
-    ; mk "false" @@ Basic Bool
-    ; mk "gen" @@ Func
+    [ mk "true" @@ Type.Basic Bool
+    ; mk "false" @@ Type.Basic Bool
+    ; mk "gen" @@ Type.Func
         { args = Map.empty (module String)
         ; table = false
         ; required = Set.empty (module String)

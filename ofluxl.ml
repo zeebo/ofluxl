@@ -8,15 +8,12 @@ let parse cont lexbuf =
 let parse_stdin cont = Lexing.from_channel Stdio.stdin |> parse cont
 let parse_str cont str = Lexing.from_string str |> parse cont
 
-let print = printf "%s"
-
-let sprint fn value = fn value |> Sexp.to_string_hum |> print
-let print_program = sprint Ast.sexp_of_program
-let print_env = sprint Env.sexp_of_t
-let print_expr = sprint Ast.sexp_of_expr
-let print_typ = sprint Types.sexp_of_typ
-let print_kind = sprint Types.sexp_of_kind
-let print_kinds = sprint (Map.sexp_of_m__t (module Types.Tvar) Types.sexp_of_kind)
+let print_program = sexp_println Ast.sexp_of_program
+let print_env = sexp_println Env.sexp_of_t
+let print_expr = sexp_println Ast.sexp_of_expr
+let print_typ = sexp_println Type.sexp_of_t
+let print_kind = sexp_println Kind.sexp_of_t
+let print_kinds = sexp_println (Map.sexp_of_m__t (module Tvar) Kind.sexp_of_t)
 
 let solve program =
   print_endline "program:";

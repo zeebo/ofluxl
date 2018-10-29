@@ -1,14 +1,13 @@
 open Std
-open Types
 
 type error =
-  | Infinite of (Tvar.t * typ)
-  | MismatchedKinds of (kind * kind)
-  | MismatchedTypes of (typ * typ)
-  | InvalidSubst of (string * typ)
-  | InvalidTypeForKind of (typ * kind)
-  | InvalidKind of kind
-  | InvalidType of typ
+  | Infinite of (Tvar.t * Type.t)
+  | MismatchedKinds of (Kind.t * Kind.t)
+  | MismatchedTypes of (Type.t * Type.t)
+  | InvalidSubst of (string * Type.t)
+  | InvalidTypeForKind of (Type.t * Kind.t)
+  | InvalidKind of Kind.t
+  | InvalidType of Type.t
   | UnknownIdentifier of string
   | UnknownRecordAccess of Set.M(String).t
 [@@deriving sexp_of]
@@ -22,7 +21,7 @@ exception Error of error
 
 let add_kind_constraint ctx typ kind =
   match typ with
-  | Variable name -> Ctx.add_kind_constraint ctx (name, kind)
+  | Type.Variable name -> Ctx.add_kind_constraint ctx (name, kind)
   | _ -> ()
 
 let rec generate_typ ctx env = function
@@ -34,41 +33,41 @@ let rec generate_typ ctx env = function
     end
 
   (* basic types *)
-  | Ast.Integer _ -> Basic Integer
-  | Ast.Float _ -> Basic Float
-  | Ast.Duration _ -> Basic Duration
-  | Ast.Time _ -> Basic Time
-  | Ast.Regex _ -> Basic Regex
-  | Ast.Char _ -> Basic Char
-  | Ast.String _ -> Basic String
+  | Integer _ -> Basic Integer
+  | Float _ -> Basic Float
+  | Duration _ -> Basic Duration
+  | Time _ -> Basic Time
+  | Regex _ -> Basic Regex
+  | Char _ -> Basic Char
+  | String _ -> Basic String
 
   (* math expressions *)
-  | Ast.Uminus expr ->
+  | Uminus expr ->
     let typ = generate_typ ctx env expr in
-    add_kind_constraint ctx typ @@ KCls Num;
+    add_kind_constraint ctx typ @@ Cls Num;
     typ
 
-  | Ast.Plus (left, right) ->
+  | Plus (left, right) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
-    add_kind_constraint ctx typl @@ KCls Add;
-    add_kind_constraint ctx typr @@ KCls Add;
+    add_kind_constraint ctx typl @@ Cls Add;
+    add_kind_constraint ctx typr @@ Cls Add;
     typl
 
-  | Ast.Minus (left, right)
-  | Ast.Times (left, right)
-  | Ast.Div (left, right) ->
+  | Minus (left, right)
+  | Times (left, right)
+  | Div (left, right) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
-    add_kind_constraint ctx typl @@ KCls Num;
-    add_kind_constraint ctx typr @@ KCls Num;
+    add_kind_constraint ctx typl @@ Cls Num;
+    add_kind_constraint ctx typr @@ Cls Num;
     typl
 
   (* logical operations *)
-  | Ast.And (left, right)
-  | Ast.Or (left, right) ->
+  | And (left, right)
+  | Or (left, right) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, Basic Bool);
@@ -76,70 +75,70 @@ let rec generate_typ ctx env = function
     Basic Bool
 
   (* function support *)
-  | Ast.Func (args, body) ->
+  | Func (args, body) ->
     let args, table, required = generate_func_args ctx env args in
     let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module Tvar))) in
     let env' = Env.insert env schemes in
     let ret = generate_typ ctx env' body in
     Func { args; table; required; ret }
 
-  | Ast.Call (expr, args) ->
+  | Call (expr, args) ->
     let typl = generate_typ ctx env expr in
     let args, required = generate_call_args ctx env args in
-    let ret = Variable (Ctx.fresh_type_name ctx) in
+    let ret = Type.Variable (Ctx.fresh_type_name ctx) in
     (* TODO: can you call a function with a `in=<-` style argument somehow? *)
     Ctx.add_typ_constraint ctx (typl, Func { args; table = false; required; ret });
     ret
 
-  | Ast.Pipe (left, Ast.Call (right, args)) ->
+  | Pipe (left, Call (right, args)) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     let args, required = generate_call_args ctx env args in
-    let ret = Variable (Ctx.fresh_type_name ctx) in
+    let ret = Type.Variable (Ctx.fresh_type_name ctx) in
     Ctx.add_typ_constraint ctx (typl, Basic Table);
     Ctx.add_typ_constraint ctx (typr, Func { args; table = true; required; ret });
     ret
 
-  | Ast.Pipe _ as expr ->
+  | Pipe _ as expr ->
     (* if the right side of the pipe isn't a call, it's a problem *)
     raise (Ast.Invalid expr)
 
-  | Ast.Return expr -> generate_typ ctx env expr
+  | Return expr -> generate_typ ctx env expr
 
   (* composite types *)
-  | Ast.List exprs ->
-    let typ = Variable (Ctx.fresh_type_name ctx) in
+  | List exprs ->
+    let typ = Type.Variable (Ctx.fresh_type_name ctx) in
     let typs = List.map exprs ~f:(generate_typ ctx env) in
     (* for now, assume lists are homogenous (??) *)
     List.iter typs ~f:(fun typ' -> Ctx.add_typ_constraint ctx (typ, typ'));
     List typ
 
-  | Ast.Record fields ->
+  | Record fields ->
     let name = Ctx.fresh_type_name ctx in
     let fields, upper = generate_call_args ctx env fields in
     Ctx.add_kind_constraint ctx
-      (name, KRecord { fields
-                     ; lower = Set.empty (module String)
-                     ; upper = Some upper
-                     });
+      (name, Record { fields
+                    ; lower = Set.empty (module String)
+                    ; upper = Some upper
+                    });
     Variable name
 
   (* projections *)
-  | Ast.Select (expr, field) ->
-    let typf = Variable (Ctx.fresh_type_name ctx) in
+  | Select (expr, field) ->
+    let typf = Type.Variable (Ctx.fresh_type_name ctx) in
     begin match generate_typ ctx env expr with
       | Variable name ->
         Ctx.add_kind_constraint ctx
-          (name, KRecord { fields = Map.singleton (module String) field typf
-                         ; lower = Set.singleton (module String) field
-                         ; upper = None (* universe *)
-                         });
+          (name, Record { fields = Map.singleton (module String) field typf
+                        ; lower = Set.singleton (module String) field
+                        ; upper = None (* universe *)
+                        });
       | _ as typ -> raise @@ Error (InvalidType typ)
     end ;
     typf
 
-  | Ast.Index (expr, index) ->
-    let typ = Variable (Ctx.fresh_type_name ctx) in
+  | Index (expr, index) ->
+    let typ = Type.Variable (Ctx.fresh_type_name ctx) in
     let typl = generate_typ ctx env expr in
     let typi = generate_typ ctx env index in
     Ctx.add_typ_constraint ctx (typl, List typ);
@@ -147,18 +146,18 @@ let rec generate_typ ctx env = function
     typ
 
   (* comparisons *)
-  | Ast.Comp (left, _, right) ->
+  | Comp (left, _, right) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     Ctx.add_typ_constraint ctx (typl, typr);
-    add_kind_constraint ctx typl @@ KCls Cmp;
-    add_kind_constraint ctx typr @@ KCls Cmp;
+    add_kind_constraint ctx typl @@ Cls Cmp;
+    add_kind_constraint ctx typr @@ Cls Cmp;
     Basic Bool
 
 (* generate a type for a given default argument *)
 and generate_default ctx env = function
   | Some (Ast.DExpr expr) -> generate_typ ctx env expr
-  | Some Ast.DPipe -> Basic Table
+  | Some DPipe -> Basic Table
   | None -> Variable (Ctx.fresh_type_name ctx)
 
 (* generate a type for a function *)
@@ -204,7 +203,7 @@ and generate_call_args ctx env args =
 
 let rec unify_typs_exn kinds left right =
   let kinds, subst = match (left, right) with
-    | (Variable namel, Variable namer) ->
+    | (Type.Variable namel, Type.Variable namer) ->
       if Tvar.equal namel namer then kinds, Subst.empty
       else begin
         let kinds, subst = unify_kinds_by_name_exn kinds namel namer in
@@ -213,7 +212,7 @@ let rec unify_typs_exn kinds left right =
 
     | (Variable name, typ)
     | (typ, Variable name) ->
-      if Types.occurs name typ then raise @@ Error (Infinite (name, typ))
+      if Type.occurs name typ then raise @@ Error (Infinite (name, typ))
       else
         let kinds = unify_kinds_by_typ_exn kinds name typ in
         kinds, Subst.singleton name typ
@@ -268,7 +267,7 @@ and unify_kinds_by_typ_exn kinds name typ =
   match Map.find kinds name with
   | None -> kinds
 
-  | Some (KCls cls as kind) -> begin
+  | Some (Cls cls as kind) -> begin
       match typ with
       | Basic basic ->
         begin match (basic, cls) with
@@ -285,7 +284,7 @@ and unify_kinds_by_typ_exn kinds name typ =
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
     end
 
-  | Some (KRecord _ as kind) -> begin
+  | Some (Record _ as kind) -> begin
       match typ with
       | Variable _ -> kinds
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
@@ -296,20 +295,20 @@ and unify_kinds kinds namel namer left right =
 
   let kinds, subst =
     match (left, right) with
-    | (KCls Cmp, KCls Cmp) -> set @@ KCls Cmp, Subst.empty
-    | (KCls Cmp, KCls Add) -> set @@ KCls Add, Subst.empty
-    | (KCls Cmp, KCls Num) -> set @@ KCls Num, Subst.empty
+    | (Kind.Cls Cmp, Kind.Cls Cmp) -> set @@ Kind.Cls Cmp, Subst.empty
+    | (Cls Cmp, Cls Add) -> set @@ Cls Add, Subst.empty
+    | (Cls Cmp, Cls Num) -> set @@ Cls Num, Subst.empty
 
-    | (KCls Add, KCls Cmp) -> set @@ KCls Add, Subst.empty
-    | (KCls Add, KCls Add) -> set @@ KCls Add, Subst.empty
-    | (KCls Add, KCls Num) -> set @@ KCls Num, Subst.empty
+    | (Cls Add, Cls Cmp) -> set @@ Cls Add, Subst.empty
+    | (Cls Add, Cls Add) -> set @@ Cls Add, Subst.empty
+    | (Cls Add, Cls Num) -> set @@ Cls Num, Subst.empty
 
-    | (KCls Num, KCls Cmp) -> set @@ KCls Num, Subst.empty
-    | (KCls Num, KCls Add) -> set @@ KCls Num, Subst.empty
-    | (KCls Num, KCls Num) -> set @@ KCls Num, Subst.empty
+    | (Cls Num, Cls Cmp) -> set @@ Cls Num, Subst.empty
+    | (Cls Num, Cls Add) -> set @@ Cls Num, Subst.empty
+    | (Cls Num, Cls Num) -> set @@ Cls Num, Subst.empty
 
-    | (KRecord { fields = fieldsl; upper = upperl; lower = lowerl },
-       KRecord { fields = fieldsr; upper = upperr; lower = lowerr }) ->
+    | (Record { fields = fieldsl; upper = upperl; lower = lowerl },
+       Record { fields = fieldsr; upper = upperr; lower = lowerr }) ->
 
       let kinds, subst = ref kinds, ref Subst.empty in
       let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
@@ -342,8 +341,8 @@ and unify_kinds kinds namel namer left right =
         | None -> ()
       end;
 
-      let kind = KRecord { fields; upper; lower } in
-      begin if Types.invalid_kind kind
+      let kind = Kind.Record { fields; upper; lower } in
+      begin if Kind.invalid kind
         then raise @@ Error (InvalidKind kind)
         else ()
       end;

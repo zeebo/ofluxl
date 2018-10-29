@@ -1,9 +1,8 @@
 open Std
-open Types
 
 type t =
-  { mutable typ_constraints : (typ * typ) list
-  ; mutable kind_constraints : kind list Map.M(Tvar).t
+  { mutable typ_constraints : (Type.t * Type.t) list
+  ; mutable kind_constraints : Kind.t list Map.M(Tvar).t
   ; mutable num: int
   }
 [@@deriving sexp_of]
@@ -31,7 +30,7 @@ let fresh_type_name ctx =
   Tvar.of_string @@ Printf.sprintf "a%d" ctx.num
 
 let rec ftv ctx = function
-  | Variable name ->
+  | Type.Variable name ->
     let ftv = match Map.find ctx.kind_constraints name with
       | Some kinds ->
         List.fold kinds
@@ -50,7 +49,7 @@ let rec ftv ctx = function
     |> Set.union (ftv ctx ret)
 
 and ftv_kind ctx = function
-  | KRecord { fields; _ } ->
+  | Record { fields; _ } ->
     fields
     |> Map.data
     |> List.map ~f:(ftv ctx)
@@ -80,7 +79,7 @@ let inst ctx (typ, ftv) =
   List.iter ctx.typ_constraints ~f:(fun (left, right) ->
       let left' = Subst.apply_typ subst left in
       let right' = Subst.apply_typ subst right in
-      match (compare_typ left left', compare_typ right right') with
+      match (Type.compare left left', Type.compare right right') with
       | (0, 0) -> ()
       | _ -> add_typ_constraint ctx (left', right'));
 
