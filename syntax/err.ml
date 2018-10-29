@@ -1,5 +1,4 @@
-open Std
-open Stdio
+open Ofluxl_std
 
 type t =
   | Lexing of Lexing.lexbuf

@@ -1,0 +1,5 @@
+(library
+    (name ofluxl_types)
+    (preprocess (pps ppx_jane))
+    (libraries ofluxl_std)
+)

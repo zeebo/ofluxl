@@ -1,4 +1,4 @@
-open Std
+open Ofluxl_std
 
 type t =
   | Variable of Tvar.t

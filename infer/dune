@@ -1,0 +1,5 @@
+(library
+    (name ofluxl_infer)
+    (preprocess (pps ppx_jane))
+    (libraries ofluxl_std ofluxl_types ofluxl_syntax)
+)

@@ -1,0 +1,14 @@
+(ocamllex
+    (modules lexer)
+)
+
+(menhir
+    (modules parser)
+    (flags --unused-tokens --explain)
+)
+
+(library
+    (name ofluxl_syntax)
+    (preprocess (pps ppx_jane))
+    (libraries ofluxl_std)
+)

@@ -1,4 +1,5 @@
-open Std
+open Ofluxl_std
+open Ofluxl_types
 
 type t = Scheme.t Map.M(String).t [@@deriving sexp_of]
 

@@ -1,0 +1,4 @@
+(executable
+    (name check)
+    (libraries ofluxl)
+)

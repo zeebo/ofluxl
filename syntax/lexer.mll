@@ -1,5 +1,5 @@
 {
-open Std
+open Ofluxl_std
 open Parser
 
 exception Error of string * Lexing.position

@@ -1,4 +1,4 @@
-open Std
+open Ofluxl_std
 
 (* TODO: have some validation methods that make sure
  * some properties are true, like pipes only happen
@@ -36,14 +36,14 @@ type expr =
 and default =
   | DExpr of expr
   | DPipe
-[@@deriving sexp]
+[@@deriving sexp_of]
 
 type statement =
   | Assign of string * expr
   | Expr of expr
-[@@deriving sexp]
+[@@deriving sexp_of]
 
 type program = statement list
-[@@deriving sexp]
+[@@deriving sexp_of]
 
 exception Invalid of expr

@@ -1,4 +1,6 @@
-open Std
+open Ofluxl_std
+open Ofluxl_types
+open Ofluxl_syntax
 
 type error =
   | Infinite of (Tvar.t * Type.t)

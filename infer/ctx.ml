@@ -1,4 +1,5 @@
-open Std
+open Ofluxl_std
+open Ofluxl_types
 
 type t =
   { mutable typ_constraints : (Type.t * Type.t) list

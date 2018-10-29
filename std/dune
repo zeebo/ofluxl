@@ -1,0 +1,4 @@
+(library
+    (name ofluxl_std)
+    (libraries base stdio)
+)

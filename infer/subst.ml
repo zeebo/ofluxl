@@ -1,4 +1,5 @@
-open Std
+open Ofluxl_std
+open Ofluxl_types
 
 type t = Type.t Map.M(Tvar).t [@@deriving sexp_of]
 

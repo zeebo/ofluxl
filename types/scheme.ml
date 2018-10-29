@@ -1,4 +1,4 @@
-open Std
+open Ofluxl_std
 
 type t = Type.t * Set.M(Tvar).t [@@deriving sexp_of]
 
