@@ -30,7 +30,8 @@ let fresh_type_name ctx =
   ctx.num <- ctx.num + 1;
   Tvar.of_string @@ Printf.sprintf "a%d" ctx.num
 
-let rec ftv ctx = function
+let rec ftv ctx typ =
+  match Type.unwrap typ with
   | Type.Variable name ->
     let ftv = match Map.find ctx.kind_constraints name with
       | Some kinds ->
@@ -62,7 +63,7 @@ let inst ctx (typ, ftv) =
   (* create a substitution for the free type variables to be fresh *)
   let subst = Set.fold ftv ~init:Subst.empty ~f:(fun subst name ->
       let name' = fresh_type_name ctx in
-      let subst' = Subst.singleton name (Variable name') in
+      let subst' = Subst.singleton name (Type.wrap @@ Variable name') in
       Subst.merge subst subst')
   in
 

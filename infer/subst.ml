@@ -7,30 +7,30 @@ let empty: t = Map.empty (module Tvar)
 
 let singleton name typ: t = Map.singleton (module Tvar) name typ
 
-let rec subst_typ name typ = function
-  | Type.Basic _ as typ -> typ
-  | Invalid as typ -> typ
-  | List typ' -> List (subst_typ name typ typ')
-  | Variable name' as typ' -> if Tvar.equal name' name then typ else typ'
-  | Func { args; table; required; ret } ->
-    Func { args = Map.map args ~f:(subst_typ name typ)
-         ; table
-         ; required
-         ; ret = subst_typ name typ ret
-         }
+let rec subst_typ name typ into =
+  match Type.unwrap into with
+  | Basic _ -> into
+  | Invalid -> into
+  | List typ' -> Type.wrap @@ List (subst_typ name typ typ')
+  | Variable name' -> if Tvar.equal name' name then typ else into
+  | Func ({ args; ret; _ } as func) -> Type.wrap @@
+    Func { func with args = Map.map args ~f:(subst_typ name typ)
+                   ; ret = subst_typ name typ ret }
 
-let subst_kind name typ = function
+let subst_kind name typ kind =
+  match kind with
   | Kind.Cls _ as kind -> kind
   | Record ({ fields; _ } as record) ->
     Record { record with fields = Map.map fields ~f:(subst_typ name typ) }
 
-let subst_scheme name typ (typ', ftv) =
-  let ftv = match (Set.mem ftv name, typ) with
+let subst_scheme name typ scheme =
+  let ftv = Scheme.ftv scheme in
+  let ftv = match (Set.mem ftv name, Type.unwrap typ) with
     | (true, Type.Variable name') -> Set.add ftv name'
     | _ -> ftv
   in
   let ftv = Set.remove ftv name in
-  (subst_typ name typ typ', ftv)
+  (subst_typ name typ (Scheme.typ scheme), ftv)
 
 let apply_typ (subst: t) typ =
   Map.fold subst ~init:typ ~f:(fun ~key ~data typ ->
@@ -50,7 +50,7 @@ let apply_env (subst: t) env =
 
 let apply_name (subst: t) name =
   match Map.find subst name with
-  | Some (Variable name') -> name'
+  | Some ({ contents = Variable name' }) -> name'
   | _ -> name
 
 let merge (substl: t) (substr: t): t =

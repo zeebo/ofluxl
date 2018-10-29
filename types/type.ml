@@ -68,9 +68,9 @@ module Convert (FromTc: Tc.S) (ToTc: Tc.S) = struct
 end
 
 module RefTc = struct
-  type 'a t = { mutable typ: 'a } [@@deriving sexp, compare]
-  let wrap a = { typ = a }
-  let unwrap t = t.typ
+  type 'a t = 'a ref [@@deriving sexp, compare]
+  let wrap a = ref a
+  let unwrap t = !t
 end
 
 module Ref = Make(RefTc)
@@ -83,7 +83,7 @@ end
 
 module Fixed = Make(FixedTc)
 
-include Fixed
+include Ref
 
 let fix =
   let module Fix = Convert(RefTc)(FixedTc) in

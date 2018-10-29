@@ -21,6 +21,6 @@ let invalid = function
   | Record { fields; lower; _ } ->
     Set.exists lower ~f:(fun field ->
         match Map.find fields field with
-        | Some Invalid -> true
+        | Some { contents = Invalid } -> true
         | _ -> false)
 

@@ -22,7 +22,7 @@ exception Error of error
  *)
 
 let add_kind_constraint ctx typ kind =
-  match typ with
+  match Type.unwrap typ with
   | Type.Variable name -> Ctx.add_kind_constraint ctx (name, kind)
   | _ -> ()
 
@@ -35,13 +35,13 @@ let rec generate_typ ctx env = function
     end
 
   (* basic types *)
-  | Integer _ -> Basic Integer
-  | Float _ -> Basic Float
-  | Duration _ -> Basic Duration
-  | Time _ -> Basic Time
-  | Regex _ -> Basic Regex
-  | Char _ -> Basic Char
-  | String _ -> Basic String
+  | Integer _ -> Type.wrap @@ Basic Integer
+  | Float _ -> Type.wrap @@ Basic Float
+  | Duration _ -> Type.wrap @@ Basic Duration
+  | Time _ -> Type.wrap @@ Basic Time
+  | Regex _ -> Type.wrap @@ Basic Regex
+  | Char _ -> Type.wrap @@ Basic Char
+  | String _ -> Type.wrap @@ Basic String
 
   (* math expressions *)
   | Uminus expr ->
@@ -72,9 +72,9 @@ let rec generate_typ ctx env = function
   | Or (left, right) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
-    Ctx.add_typ_constraint ctx (typl, Basic Bool);
-    Ctx.add_typ_constraint ctx (typr, Basic Bool);
-    Basic Bool
+    Ctx.add_typ_constraint ctx (typl, Type.wrap @@ Basic Bool);
+    Ctx.add_typ_constraint ctx (typr, Type.wrap @@ Basic Bool);
+    Type.wrap @@ Basic Bool
 
   (* function support *)
   | Func (args, body) ->
@@ -82,23 +82,23 @@ let rec generate_typ ctx env = function
     let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module Tvar))) in
     let env' = Env.insert env schemes in
     let ret = generate_typ ctx env' body in
-    Func { args; table; required; ret }
+    Type.wrap @@ Func { args; table; required; ret }
 
   | Call (expr, args) ->
     let typl = generate_typ ctx env expr in
     let args, required = generate_call_args ctx env args in
-    let ret = Type.Variable (Ctx.fresh_type_name ctx) in
+    let ret = Type.wrap @@ Variable (Ctx.fresh_type_name ctx) in
     (* TODO: can you call a function with a `in=<-` style argument somehow? *)
-    Ctx.add_typ_constraint ctx (typl, Func { args; table = false; required; ret });
+    Ctx.add_typ_constraint ctx (typl, Type.wrap @@ Func { args; table = false; required; ret });
     ret
 
   | Pipe (left, Call (right, args)) ->
     let typl = generate_typ ctx env left in
     let typr = generate_typ ctx env right in
     let args, required = generate_call_args ctx env args in
-    let ret = Type.Variable (Ctx.fresh_type_name ctx) in
-    Ctx.add_typ_constraint ctx (typl, Basic Table);
-    Ctx.add_typ_constraint ctx (typr, Func { args; table = true; required; ret });
+    let ret = Type.wrap @@ Variable (Ctx.fresh_type_name ctx) in
+    Ctx.add_typ_constraint ctx (typl, Type.wrap @@ Basic Table);
+    Ctx.add_typ_constraint ctx (typr, Type.wrap @@ Func { args; table = true; required; ret });
     ret
 
   | Pipe _ as expr ->
@@ -109,11 +109,11 @@ let rec generate_typ ctx env = function
 
   (* composite types *)
   | List exprs ->
-    let typ = Type.Variable (Ctx.fresh_type_name ctx) in
+    let typ = Type.wrap @@ Variable (Ctx.fresh_type_name ctx) in
     let typs = List.map exprs ~f:(generate_typ ctx env) in
     (* for now, assume lists are homogenous (??) *)
     List.iter typs ~f:(fun typ' -> Ctx.add_typ_constraint ctx (typ, typ'));
-    List typ
+    Type.wrap @@ List typ
 
   | Record fields ->
     let name = Ctx.fresh_type_name ctx in
@@ -123,28 +123,29 @@ let rec generate_typ ctx env = function
                     ; lower = Set.empty (module String)
                     ; upper = Some upper
                     });
-    Variable name
+    Type.wrap @@ Variable name
 
   (* projections *)
   | Select (expr, field) ->
-    let typf = Type.Variable (Ctx.fresh_type_name ctx) in
-    begin match generate_typ ctx env expr with
+    let typf = Type.wrap @@ Variable (Ctx.fresh_type_name ctx) in
+    let record = generate_typ ctx env expr in
+    begin match Type.unwrap @@ record with
       | Variable name ->
         Ctx.add_kind_constraint ctx
           (name, Record { fields = Map.singleton (module String) field typf
                         ; lower = Set.singleton (module String) field
                         ; upper = None (* universe *)
                         });
-      | _ as typ -> raise @@ Error (InvalidType typ)
-    end ;
+      | _ -> raise @@ Error (InvalidType record)
+    end;
     typf
 
   | Index (expr, index) ->
-    let typ = Type.Variable (Ctx.fresh_type_name ctx) in
+    let typ = Type.wrap @@ Variable (Ctx.fresh_type_name ctx) in
     let typl = generate_typ ctx env expr in
     let typi = generate_typ ctx env index in
-    Ctx.add_typ_constraint ctx (typl, List typ);
-    Ctx.add_typ_constraint ctx (typi, Basic Integer);
+    Ctx.add_typ_constraint ctx (typl, Type.wrap @@ List typ);
+    Ctx.add_typ_constraint ctx (typi, Type.wrap @@ Basic Integer);
     typ
 
   (* comparisons *)
@@ -154,13 +155,13 @@ let rec generate_typ ctx env = function
     Ctx.add_typ_constraint ctx (typl, typr);
     add_kind_constraint ctx typl @@ Cls Cmp;
     add_kind_constraint ctx typr @@ Cls Cmp;
-    Basic Bool
+    Type.wrap @@ Basic Bool
 
 (* generate a type for a given default argument *)
 and generate_default ctx env = function
   | Some (Ast.DExpr expr) -> generate_typ ctx env expr
-  | Some DPipe -> Basic Table
-  | None -> Variable (Ctx.fresh_type_name ctx)
+  | Some DPipe -> Type.wrap @@ Basic Table
+  | None -> Type.wrap @@ Variable (Ctx.fresh_type_name ctx)
 
 (* generate a type for a function *)
 and generate_func_args ctx env args =
@@ -205,24 +206,24 @@ and generate_call_args ctx env args =
 
 let rec unify_typs_exn kinds left right =
   let kinds, subst = match (left, right) with
-    | (Type.Variable namel, Type.Variable namer) ->
+    | ({ contents = Type.Variable namel }, { contents = Type.Variable namer }) ->
       if Tvar.equal namel namer then kinds, Subst.empty
       else begin
         let kinds, subst = unify_kinds_by_name_exn kinds namel namer in
-        kinds, Subst.merge (Subst.singleton namel (Variable namer)) subst
+        kinds, Subst.merge (Subst.singleton namel (Type.wrap @@ Variable namer)) subst
       end
 
-    | (Variable name, typ)
-    | (typ, Variable name) ->
+    | ({ contents = Variable name }, typ)
+    | (typ, { contents = Variable name }) ->
       if Type.occurs name typ then raise @@ Error (Infinite (name, typ))
       else
         let kinds = unify_kinds_by_typ_exn kinds name typ in
         kinds, Subst.singleton name typ
 
-    | (List left, List right) -> unify_typs_exn kinds left right
+    | ({ contents = List left }, {contents = List right }) -> unify_typs_exn kinds left right
 
-    | (Func {args = argsl; table = tablel; required = requiredl; ret = retl },
-       Func {args = argsr; table = tabler; required = requiredr; ret = retr }) as typs ->
+    | ({ contents = Func {args = argsl; table = tablel; required = requiredl; ret = retl }},
+       { contents = Func {args = argsr; table = tabler; required = requiredr; ret = retr }}) as typs ->
 
       (* TODO: allow calls with the table being explicitly specified *)
       if not @@ Bool.equal tablel tabler ||
@@ -248,18 +249,21 @@ let rec unify_typs_exn kinds left right =
             )
       end
 
-    | (Invalid, Invalid)
-    | (Basic Integer, Basic Integer)
-    | (Basic Float, Basic Float)
-    | (Basic Duration, Basic Duration)
-    | (Basic Time, Basic Time)
-    | (Basic Regex, Basic Regex)
-    | (Basic Char, Basic Char)
-    | (Basic String, Basic String)
-    | (Basic Bool, Basic Bool)
-    | (Basic Table, Basic Table) -> kinds, Subst.empty
+    | ({ contents = Invalid }, { contents = Invalid })
+    | ({ contents = Basic Integer }, { contents = Basic Integer })
+    | ({ contents = Basic Float }, { contents = Basic Float })
+    | ({ contents = Basic Duration }, { contents = Basic Duration })
+    | ({ contents = Basic Time }, { contents = Basic Time })
+    | ({ contents = Basic Regex }, { contents = Basic Regex })
+    | ({ contents = Basic Char }, { contents = Basic Char })
+    | ({ contents = Basic String }, { contents = Basic String })
+    | ({ contents = Basic Bool }, { contents = Basic Bool })
+    | ({ contents = Basic Table }, { contents = Basic Table }) -> kinds, Subst.empty
 
-    | (Func _, _) | (List _, _) | (Basic _, _) | (Invalid, _) as typs ->
+    | ({ contents = Func _ }, _)
+    | ({ contents = List _ }, _)
+    | ({ contents = Basic _ }, _)
+    | ({ contents = Invalid }, _) as typs ->
       raise @@ Error (MismatchedTypes typs)
   in
 
@@ -269,8 +273,8 @@ and unify_kinds_by_typ_exn kinds name typ =
   match Map.find kinds name with
   | None -> kinds
 
-  | Some (Cls cls as kind) -> begin
-      match typ with
+  | Some (Kind.Cls cls as kind) -> begin
+      match Type.unwrap typ with
       | Basic basic ->
         begin match (basic, cls) with
           | (Integer,  Cmp) | (Integer,  Add) | (Integer,  Num)
@@ -287,7 +291,7 @@ and unify_kinds_by_typ_exn kinds name typ =
     end
 
   | Some (Record _ as kind) -> begin
-      match typ with
+      match Type.unwrap typ with
       | Variable _ -> kinds
       | _ -> raise @@ Error (InvalidTypeForKind (typ, kind))
     end
@@ -323,7 +327,7 @@ and unify_kinds kinds namel namer left right =
               subst := Subst.merge subst' !subst;
               Some (Subst.apply_typ subst' left)
             with
-            | Error _ -> Some Invalid
+            | Error _ -> Some (Type.wrap Invalid)
         )
       in
       let upper = match (upperl, upperr) with
