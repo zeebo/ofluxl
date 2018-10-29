@@ -20,7 +20,7 @@ let print_context (lexbuf: Lexing.lexbuf) line =
     | None -> ()
   done
 
-let print_error error =
+let print error =
   let lexbuf, kind = match error with
     | Lexing lexbuf -> lexbuf, "syntax"
     | Parsing lexbuf -> lexbuf, "parse"
