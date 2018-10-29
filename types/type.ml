@@ -41,50 +41,5 @@ module Make(Tc: Tc.S) = struct
     | Invalid -> false
 end
 
-(* convert maps a type from one type constructor to another *)
-module Convert (FromTc: Tc.S) (ToTc: Tc.S) = struct
-  let convert =
-    let module From = Make(FromTc) in
-    let module To = Make(ToTc) in
-
-    let rec convert from = To.wrap @@
-      match From.unwrap from with
-      | From.Invalid -> To.Invalid
-      | List typ -> List (convert typ)
-      | Func { args; table; required; ret } ->
-        Func { args = Map.map args ~f:convert ; table ; required; ret = convert ret }
-      | Variable tvar -> Variable tvar
-      | Basic Integer -> Basic Integer
-      | Basic Float -> Basic Float
-      | Basic Duration -> Basic Duration
-      | Basic Time -> Basic Time
-      | Basic Regex -> Basic Regex
-      | Basic Char -> Basic Char
-      | Basic String -> Basic String
-      | Basic Bool -> Basic Bool
-      | Basic Table -> Basic Table
-
-    in convert
-end
-
-module RefTc = struct
-  type 'a t = 'a ref [@@deriving sexp, compare]
-  let wrap a = ref a
-  let unwrap t = !t
-end
-
-module Ref = Make(RefTc)
-
-module FixedTc = struct
-  type 'a t = 'a [@@deriving sexp, compare]
-  let wrap a = a
-  let unwrap t = t
-end
-
-module Fixed = Make(FixedTc)
-
-include Ref
-
-let fix =
-  let module Fix = Convert(RefTc)(FixedTc) in
-  Fix.convert
+module Fixed = Make(Tc.Identity)
+include Make(Tc.Ref)

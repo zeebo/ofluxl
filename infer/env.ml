@@ -1,25 +1,33 @@
 open Ofluxl_std
 open Ofluxl_types
 
-type t = Scheme.t Map.M(String).t [@@deriving sexp_of]
+module Make(Tc: Tc.S) = struct
+  module Type = Type.Make(Tc)
+  module Scheme = Scheme.Make(Tc)
 
-let empty: t =
-  let mk name typ = (name, Scheme.empty @@ Type.wrap typ) in
+  type t = Scheme.t Map.M(String).t [@@deriving sexp_of]
 
-  Map.of_alist_exn (module String)
-    [ mk "true" @@ Type.Basic Bool
-    ; mk "false" @@ Type.Basic Bool
-    ]
+  let empty: t =
+    let mk name typ = (name, Scheme.empty @@ Type.wrap typ) in
 
-let insert (env: t) args: t =
-  Map.merge env args ~f:(fun ~key:_ -> function
-      | `Both (_, right) -> Some right
-      | `Left left -> Some left
-      | `Right right -> Some right
-    )
+    Map.of_alist_exn (module String)
+      [ mk "true" @@ Type.Basic Bool
+      ; mk "false" @@ Type.Basic Bool
+      ]
 
-let set (env: t) name scheme: t =
-  Map.set env ~key:name ~data:scheme
+  let insert (env: t) args: t =
+    Map.merge env args ~f:(fun ~key:_ -> function
+        | `Both (_, right) -> Some right
+        | `Left left -> Some left
+        | `Right right -> Some right
+      )
 
-let find (env: t) name =
-  Map.find env name
+  let set (env: t) name scheme: t =
+    Map.set env ~key:name ~data:scheme
+
+  let find (env: t) name =
+    Map.find env name
+end
+
+module Fixed = Make(Tc.Identity)
+include Make(Tc.Ref)

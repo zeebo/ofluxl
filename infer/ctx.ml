@@ -50,7 +50,8 @@ let rec ftv ctx typ =
     |> List.fold ~init:(Set.empty (module Tvar)) ~f:Set.union
     |> Set.union (ftv ctx ret)
 
-and ftv_kind ctx = function
+and ftv_kind ctx kind =
+  match Kind.unwrap kind with
   | Record { fields; _ } ->
     fields
     |> Map.data

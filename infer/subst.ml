@@ -17,34 +17,33 @@ let rec subst_typ name typ into =
     Func { func with args = Map.map args ~f:(subst_typ name typ)
                    ; ret = subst_typ name typ ret }
 
-let subst_kind name typ kind =
-  match kind with
-  | Kind.Cls _ as kind -> kind
-  | Record ({ fields; _ } as record) ->
+let subst_kind name typ (kind: Kind.t) =
+  match Kind.unwrap kind with
+  | Kind.Cls _ -> kind
+  | Record ({ fields; _ } as record) -> Kind.wrap @@
     Record { record with fields = Map.map fields ~f:(subst_typ name typ) }
 
-let subst_scheme name typ scheme =
-  let ftv = Scheme.ftv scheme in
+let subst_scheme name typ (typ', ftv) =
   let ftv = match (Set.mem ftv name, Type.unwrap typ) with
     | (true, Type.Variable name') -> Set.add ftv name'
     | _ -> ftv
   in
   let ftv = Set.remove ftv name in
-  (subst_typ name typ (Scheme.typ scheme), ftv)
+  (subst_typ name typ typ', ftv)
 
-let apply_typ (subst: t) typ =
+let apply_typ (subst: t) (typ: Type.t) =
   Map.fold subst ~init:typ ~f:(fun ~key ~data typ ->
       subst_typ key data typ)
 
-let apply_scheme (subst: t) scheme =
+let apply_scheme (subst: t) (scheme: Scheme.t) =
   Map.fold subst ~init:scheme ~f:(fun ~key ~data (typ, ftv) ->
       subst_typ key data typ, ftv)
 
-let apply_kind (subst: t) kind =
+let apply_kind (subst: t) (kind: Kind.t) =
   Map.fold subst ~init:kind ~f:(fun ~key ~data kind ->
       subst_kind key data kind)
 
-let apply_env (subst: t) env =
+let apply_env (subst: t) (env: Env.t) =
   Map.fold subst ~init:env ~f:(fun ~key ~data env ->
       Map.map env ~f:(subst_scheme key data))
 
