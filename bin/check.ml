@@ -7,17 +7,17 @@ let print_program =
   sexp_println Syntax.Ast.sexp_of_program
 
 let print_env =
-  sexp_println Infer.Env.Fixed.sexp_of_t
+  sexp_println Infer.Env.sexp_of_t
 
 let print_kinds =
-  sexp_println (Hashtbl.sexp_of_m__t (module Ofluxl.Types.Tvar) Ofluxl.Types.Kind.Fixed.sexp_of_t)
+  sexp_println (Hashtbl.sexp_of_m__t (module Ofluxl.Types.Tvar) Ofluxl.Types.Kind.sexp_of_t)
 
 let solve program =
   println "program:";
   print_program program;
   println "";
 
-  let env, kinds = Infer.Solve2.solve_exn program in
+  let env, kinds = Infer.Solve.solve_exn program in
 
   println "env:";
   print_env env;

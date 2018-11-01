@@ -4,21 +4,20 @@ open Ofluxl_std
 open Ofluxl_types
 
 let unify = (object (self)
-  method typs (ctx: Context.ut) left right: Type.typ =
-    printf "unify %s with %s\n"
-      (sexp_sprint Type.sexp_of_t left)
-      (sexp_sprint Type.sexp_of_t right);
+  method typs ctx (left: Type.t) (right: Type.t): Type.t =
+    match left, right with
+    | Type.Variable _, typr -> typr
+    | typl, Type.Variable _ -> typl
 
-    match Type.unwrap left, Type.unwrap right with
-    | Variable _, typr -> typr
     | List typl, List typr -> List (ctx#unify_typs self typl typr)
+
     | Func {args = argsl; table = tablel; required = requiredl; ret = retl },
       Func {args = argsr; table = tabler; required = requiredr; ret = retr } ->
 
       if not @@ Bool.equal tablel tabler ||
          not @@ Set.is_subset requiredl ~of_:requiredr
       then
-        raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
+        raise @@ Infer (MismatchedTypes (left, right))
       else
         Func
           { table = tabler
@@ -27,27 +26,23 @@ let unify = (object (self)
           ; args = Map.merge argsl argsr ~f:(fun ~key -> function
                 | `Left typ ->
                   if Set.mem requiredl key
-                  then raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
+                  then raise @@ Infer (MismatchedTypes (left, right))
                   else Some typ
 
                 | `Right _ ->
-                  raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
+                  raise @@ Infer (MismatchedTypes (left, right))
 
                 | `Both (typl, typr) ->
                   Some (ctx#unify_typs self typl typr))
           }
 
     | typl, typr ->
-      if not @@ Type.equal_typ typl typr
-      then raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
+      if not @@ Type.equal typl typr
+      then raise @@ Infer (MismatchedTypes (left, right))
       else typr
 
-  method kinds ctx left right: Kind.kind =
-    printf "unify %s with %s\n"
-      (sexp_sprint Kind.sexp_of_t left)
-      (sexp_sprint Kind.sexp_of_t right);
-
-    match Kind.unwrap left, Kind.unwrap right with
+  method kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
+    match left, right with
     | Cls Cmp, Cls Cmp -> Cls Cmp
     | Cls Cmp, Cls Add -> Cls Add
     | Cls Cmp, Cls Num -> Cls Num
@@ -64,8 +59,9 @@ let unify = (object (self)
       let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
           | `Left left -> Some left
           | `Right right -> Some right
-          | `Both (left, right) -> Some (ctx#unify_typs self ~strict:false left right)
-        )
+          | `Both (left, right) ->
+            try Some (ctx#unify_typs self left right) with
+            | Infer _ -> Some Invalid)
       in
       let upper = match upperl, upperr with
         | None, Some upperr -> Some upperr
@@ -79,5 +75,6 @@ let unify = (object (self)
 
       Record { fields; upper; lower }
 
-    | _ -> raise @@ Infer (MismatchedKinds (Fix.kind left, Fix.kind right))
+    | _ -> raise @@ Infer (MismatchedKinds (left, right))
+
 end :> Context.unifier)

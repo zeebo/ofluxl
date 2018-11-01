@@ -2,7 +2,7 @@ open Ofluxl_std
 open Ofluxl_types
 open Ofluxl_syntax.Ast
 
-let rec generate (ctx: Context.t) = function
+let rec generate (ctx: Context.t): expr -> Type.t = function
   (*
    * identifier lookup
    *)
@@ -11,13 +11,13 @@ let rec generate (ctx: Context.t) = function
   (*
    * basic types
    *)
-  | Integer _  -> Type.wrap @@ Basic Integer
-  | Float _    -> Type.wrap @@ Basic Float
-  | Duration _ -> Type.wrap @@ Basic Duration
-  | Time _     -> Type.wrap @@ Basic Time
-  | Regex _    -> Type.wrap @@ Basic Regex
-  | Char _     -> Type.wrap @@ Basic Char
-  | String _   -> Type.wrap @@ Basic String
+  | Integer _  -> Basic Integer
+  | Float _    -> Basic Float
+  | Duration _ -> Basic Duration
+  | Time _     -> Basic Time
+  | Regex _    -> Basic Regex
+  | Char _     -> Basic Char
+  | String _   -> Basic String
 
   (*
    * math expressions
@@ -33,7 +33,7 @@ let rec generate (ctx: Context.t) = function
     ctx#typ_constraint typl typr;
     ctx#kind_constraint typl @@ Cls Add;
     ctx#kind_constraint typr @@ Cls Add;
-    Type.refresh typl
+    typl
 
   | Minus (left, right)
   | Times (left, right)
@@ -43,7 +43,7 @@ let rec generate (ctx: Context.t) = function
     ctx#typ_constraint typl typr;
     ctx#kind_constraint typl @@ Cls Num;
     ctx#kind_constraint typr @@ Cls Num;
-    Type.refresh typl
+    typl
 
   (*
    * logical operations
@@ -52,9 +52,9 @@ let rec generate (ctx: Context.t) = function
   | Or (left, right) ->
     let typl = generate ctx left in
     let typr = generate ctx right in
-    ctx#typ_constraint typl (Type.wrap @@ Basic Bool);
-    ctx#typ_constraint typr (Type.wrap @@ Basic Bool);
-    Type.wrap @@ Basic Bool
+    ctx#typ_constraint typl @@ Basic Bool;
+    ctx#typ_constraint typr @@ Basic Bool;
+    Basic Bool
 
   (*
    * function support
@@ -63,13 +63,13 @@ let rec generate (ctx: Context.t) = function
     let args, table, required = generate_func_args ctx args in
     let entries = Map.map args ~f:Scheme.empty in
     let ret = ctx#scope entries (fun ctx -> generate ctx body) in
-    Type.wrap @@ Func { args; table; required; ret }
+    Func { args; table; required; ret }
 
   | Call (expr, args) ->
     let typl = generate ctx expr in
     let args, required = generate_call_args ctx args in
     let ret = ctx#fresh_variable in
-    ctx#typ_constraint typl (Type.wrap @@ Func { args; table = false; required; ret });
+    ctx#typ_constraint typl @@ Func { args; table = false; required; ret };
     ret
 
   | Pipe (left, Call (right, args)) ->
@@ -77,12 +77,12 @@ let rec generate (ctx: Context.t) = function
     let typr = generate ctx right in
     let args, required = generate_call_args ctx args in
     let ret = ctx#fresh_variable in
-    ctx#typ_constraint typl (Type.wrap @@ Basic Table);
-    ctx#typ_constraint typr (Type.wrap @@ Func { args; table = true; required; ret });
+    ctx#typ_constraint typl @@ Basic Table;
+    ctx#typ_constraint typr @@ Func { args; table = true; required; ret };
     ret
 
   | Pipe _ as expr -> (* if the right side of the pipe isn't a call, it's a problem *)
-    raise (Invalid expr)
+    raise @@ Invalid expr
 
   | Return expr ->
     generate ctx expr
@@ -94,17 +94,13 @@ let rec generate (ctx: Context.t) = function
     let typ = ctx#fresh_variable in
     let typs = List.map exprs ~f:(generate ctx) in
     List.iter typs ~f:(ctx#typ_constraint typ);
-    Type.wrap @@ List typ
+    List typ
 
   | Record fields ->
     let typ = ctx#fresh_variable in
     let fields, upper = generate_call_args ctx fields in
-    let kind = Kind.Record
-        { fields
-        ; lower = Set.empty (module String)
-        ; upper = Some upper
-        } in
-    ctx#kind_constraint typ kind;
+    let lower, upper = Set.empty (module String), Some upper in
+    ctx#kind_constraint typ @@ Record { fields; lower; upper };
     typ
 
   (*
@@ -113,20 +109,18 @@ let rec generate (ctx: Context.t) = function
   | Select (expr, field) ->
     let typf = ctx#fresh_variable in
     let typ = generate ctx expr in
-    let kind = Kind.Record
-        { fields = Map.singleton (module String) field typf
-        ; lower = Set.singleton (module String) field
-        ; upper = None (* universe *)
-        } in
-    ctx#kind_constraint typ kind;
+    let fields = Map.singleton (module String) field typf in
+    let lower = Set.singleton (module String) field in
+    let upper = None (* universe *) in
+    ctx#kind_constraint typ @@ Record { fields; lower; upper };
     typf
 
   | Index (expr, index) ->
     let typ = ctx#fresh_variable in
     let typl = generate ctx expr in
     let typi = generate ctx index in
-    ctx#typ_constraint typl (Type.wrap @@ List typ);
-    ctx#typ_constraint typi (Type.wrap @@ Basic Integer);
+    ctx#typ_constraint typl @@ List typ;
+    ctx#typ_constraint typi @@ Basic Integer;
     typ
 
   (*
@@ -138,7 +132,7 @@ let rec generate (ctx: Context.t) = function
     ctx#typ_constraint typl typr;
     ctx#kind_constraint typl @@ Cls Cmp;
     ctx#kind_constraint typr @@ Cls Cmp;
-    Type.wrap @@ Basic Bool
+    Basic Bool
 
 (*
  * helpers
@@ -147,26 +141,23 @@ let rec generate (ctx: Context.t) = function
 (* generate a type for a given default argument *)
 and generate_default ctx = function
   | Some (DExpr expr) -> generate ctx expr
-  | Some DPipe -> Type.wrap @@ Basic Table
+  | Some DPipe -> Basic Table
   | None -> ctx#fresh_variable
 
 (* generate the information for a function *)
 and generate_func_args ctx args =
-  let table =
-    List.exists args ~f:(function
-        | _, Some DPipe -> true
-        | _ -> false)
+  let table = List.exists args ~f:(function
+      | _, Some DPipe -> true
+      | _ -> false)
   in
 
-  let required =
-    Set.of_list (module String) @@
+  let required = Set.of_list (module String) @@
     List.filter_map args ~f:(function
         | _, Some _ -> None
         | name, None -> Some name)
   in
 
-  let args =
-    Map.of_alist_exn (module String) @@
+  let args = Map.of_alist_exn (module String) @@
     List.map args ~f:(fun (name, def) -> (name, generate_default ctx def))
   in
 
@@ -174,8 +165,7 @@ and generate_func_args ctx args =
 
 (* generate the information for a call *)
 and generate_call_args ctx args =
-  let args =
-    Map.of_alist_exn (module String) @@
+  let args = Map.of_alist_exn (module String) @@
     List.map args ~f:(fun (name, expr) -> (name, generate ctx expr))
   in
 
