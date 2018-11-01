@@ -15,7 +15,7 @@ module Make(Tc: Tc.S) = struct
       ; mk "false" @@ Type.Basic Bool
       ]
 
-  let insert (env: t) args: t =
+  let merge (env: t) args: t =
     Map.merge env args ~f:(fun ~key:_ -> function
         | `Both (_, right) -> Some right
         | `Left left -> Some left

@@ -4,6 +4,8 @@ type t =
   | Lexing of Lexing.lexbuf
   | Parsing of Lexing.lexbuf
 
+exception SyntaxErr of t
+
 let positions (lexbuf: Lexing.lexbuf) =
   let start = lexbuf.lex_start_p in
   let curr = lexbuf.lex_curr_p in

@@ -18,7 +18,7 @@ let rec generate_typ ctx env = function
   | Ast.Ident ident -> begin
       match Env.find env ident with
       | Some scheme -> Ctx.inst ctx scheme
-      | None -> raise @@ Error (UnknownIdentifier ident)
+      | None -> raise @@ Infer (UnknownIdentifier ident)
     end
 
   (* basic types *)
@@ -67,7 +67,7 @@ let rec generate_typ ctx env = function
   | Func (args, body) ->
     let args, table, required = generate_func_args ctx env args in
     let schemes = Map.map args ~f:(fun typ -> (typ, Set.empty (module Tvar))) in
-    let env' = Env.insert env schemes in
+    let env' = Env.merge env schemes in
     let ret = generate_typ ctx env' body in
     Type.wrap @@ Func { args; table; required; ret }
 
@@ -125,7 +125,7 @@ let rec generate_typ ctx env = function
              ; lower = Set.singleton (module String) field
              ; upper = None (* universe *)
              });
-      | _ -> raise @@ Error (InvalidType (Fix.typ record))
+      | _ -> raise @@ Infer (InvalidType (Fix.typ record))
     end;
     typf
 
@@ -204,7 +204,7 @@ let rec unify_typs_exn kinds left right =
 
     | ({ contents = Variable name }, typ)
     | (typ, { contents = Variable name }) ->
-      if Type.occurs name typ then raise @@ Error (Infinite (name, Fix.typ typ))
+      if Type.occurs name typ then raise @@ Infer (Infinite (name, Fix.typ typ))
       else
         let kinds = unify_kinds_by_typ_exn kinds name typ in
         kinds, Subst.singleton name typ
@@ -218,7 +218,7 @@ let rec unify_typs_exn kinds left right =
       if not @@ Bool.equal tablel tabler ||
          not @@ Set.is_subset requiredl ~of_:requiredr
       then
-        raise @@ Error (MismatchedTypes (Fix.typ left, Fix.typ right))
+        raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
       else begin
         Map.fold2 argsl argsr
           ~init:(unify_typs_exn kinds retl retr)
@@ -226,10 +226,10 @@ let rec unify_typs_exn kinds left right =
               match data with
               | `Left _ ->
                 if Set.mem requiredl name
-                then raise @@ Error (MismatchedTypes (Fix.typ left, Fix.typ right))
+                then raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
                 else kinds, subst
               | `Right _ ->
-                raise @@ Error (MismatchedTypes (Fix.typ left, Fix.typ right))
+                raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
               | `Both (typl, typr) ->
                 let typl = Subst.apply_typ subst typl in
                 let typr = Subst.apply_typ subst typr in
@@ -253,7 +253,7 @@ let rec unify_typs_exn kinds left right =
     | ({ contents = List _ }, _)
     | ({ contents = Basic _ }, _)
     | ({ contents = Invalid }, _) ->
-      raise @@ Error (MismatchedTypes (Fix.typ left, Fix.typ right))
+      raise @@ Infer (MismatchedTypes (Fix.typ left, Fix.typ right))
   in
 
   (Map.map kinds ~f:(Subst.apply_kind subst), subst)
@@ -272,7 +272,7 @@ and unify_kinds_by_typ_exn kinds name typ =
     | (Cls Cmp, Basic Regex)
     | (Cls Cmp, Basic Char)
     | (Cls Cmp, Basic Bool) -> Map.remove kinds name
-    | _ -> raise @@ Error (InvalidTypeForKind (Fix.typ typ, Fix.kind kind))
+    | _ -> raise @@ Infer (InvalidTypeForKind (Fix.typ typ, Fix.kind kind))
 
 and unify_kinds kinds namel namer left right =
   let set (data: Kind.t) = Map.set kinds ~key:namer ~data in
@@ -305,7 +305,7 @@ and unify_kinds kinds namel namer left right =
               subst := Subst.merge subst' !subst;
               Some (Subst.apply_typ subst' left)
             with
-            | Error _ -> Some (Type.wrap Invalid)
+            | Infer _ -> Some (Type.wrap Invalid)
         )
       in
       let upper = match (upperl, upperr) with
@@ -320,21 +320,23 @@ and unify_kinds kinds namel namer left right =
         | Some upper ->
           let extra = Set.diff lower upper in
           if not (Set.is_empty extra)
-          then raise @@ Error (UnknownRecordAccess extra)
+          then raise @@ Infer (UnknownRecordAccess extra)
           else ()
         | None -> ()
       end;
 
-      let kind = Kind.wrap @@ Record { fields; upper; lower } in
-      begin if Kind.invalid kind
-        then raise @@ Error (InvalidKind (Fix.kind kind))
+      let record = { Kind.fields; upper; lower } in
+      let kind = Kind.wrap @@ Record record in
+      begin
+        if Kind.invalid record
+        then raise @@ Infer (InvalidKind (Fix.kind kind))
         else ()
       end;
 
       let kinds = Map.set !kinds ~key:namer ~data:kind in
       kinds, !subst
 
-    | _ -> raise @@ Error (MismatchedKinds (Fix.kind left, Fix.kind right))
+    | _ -> raise @@ Infer (MismatchedKinds (Fix.kind left, Fix.kind right))
   in
 
   (* remove the left name if it exists and is distinct *)
@@ -424,4 +426,4 @@ let solve_exn program =
 
 let solve expr =
   try Ok (solve_exn expr) with
-  | Error error -> Error error
+  | Infer error -> Error error

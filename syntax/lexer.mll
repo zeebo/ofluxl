@@ -98,12 +98,16 @@ rule token = parse
 
     (* literals *)
     | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 ('.' digit+)? 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
-    | (integer 'h')  (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')  (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')? (integer 's')  (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")  (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")  (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")  { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')  (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")  (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')  (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')  (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')  (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')  (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')  (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")  (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")  (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")  { emit (DURATION (Lexing.lexeme lexbuf)) }
     | integer { emit (INTEGER (Lexing.lexeme lexbuf)) }
     | float   { emit (FLOAT (Lexing.lexeme lexbuf)) }
     | ident { emit (IDENT (Lexing.lexeme lexbuf)) }

@@ -13,5 +13,6 @@ type t =
   | UnknownRecordAccess of Set.M(String).t
 [@@deriving sexp_of]
 
-exception Error of t
-[@@deriving sexp_of]
+exception Infer of t [@@deriving sexp_of]
+
+let throw err = raise @@ Infer err

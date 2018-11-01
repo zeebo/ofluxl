@@ -65,7 +65,7 @@ let inst ctx (typ, ftv) =
   let subst = Set.fold ftv ~init:Subst.empty ~f:(fun subst name ->
       let name' = fresh_type_name ctx in
       let subst' = Subst.singleton name (Type.wrap @@ Variable name') in
-      Subst.merge subst subst')
+      Subst.merge subst' subst)
   in
 
   (* copy in all of the kind constraints for the new type variables *)

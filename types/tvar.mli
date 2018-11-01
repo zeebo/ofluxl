@@ -1,6 +1,6 @@
 open Ofluxl_std
 
-type t [@@deriving sexp_of, compare]
+type t [@@deriving sexp_of, compare, hash]
 
 include Comparator.S with type t := t
 
