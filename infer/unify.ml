@@ -3,7 +3,7 @@ open Err
 open Ofluxl_std
 open Ofluxl_types
 
-let unify = (object (self)
+let unifier = (object (self)
   method typs ctx (left: Type.t) (right: Type.t): Type.t =
     match left, right with
     | Type.Variable _, typr -> typr

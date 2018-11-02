@@ -19,4 +19,4 @@ let solve_exn program =
         let typ = Generate.generate ctx expr in
         ctx#insert ident (ctx#generalize typ));
 
-  ctx#solve Unify.unify
+  ctx#solve Unify.unifier
