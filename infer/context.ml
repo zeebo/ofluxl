@@ -153,8 +153,10 @@ let default () = (object (self)
           | _ -> name
 
       method update_name unifier name typ =
-        (* store the mapping first *)
+        (* update our state with the new mapping information *)
         Hashtbl.set mapping ~key:name ~data:typ;
+        Hashtbl.map_inplace kinds ~f:(Kind.substitute mapping);
+        env <- Env.substitute mapping env;
 
         (* if it maps to a new name, then copy and merge the kinds *)
         begin match typ with
@@ -170,16 +172,7 @@ let default () = (object (self)
               | None -> ()
             end
           | _ -> ()
-        end;
-
-        (* update all of the kinds to include the mapping *)
-        Hashtbl.mapi_inplace kinds ~f:(fun ~key ~data ->
-            if Tvar.equal key name
-            then Kind.substitute mapping data
-            else data);
-
-        (* update the environment to include the mapping *)
-        env <- Env.substitute mapping env
+        end
 
       (* add_kind introduces the kind constraint under the name *)
       method add_kind unifier name kind =
