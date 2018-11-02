@@ -6,8 +6,8 @@ open Ofluxl_types
 let unifier = (object (self)
   method typs ctx (left: Type.t) (right: Type.t): Type.t =
     match left, right with
-    | Type.Variable _, typr -> typr
-    | typl, Type.Variable _ -> typl
+    | Variable _, typr -> typr
+    | typl, Variable _ -> typl
 
     | List typl, List typr -> List (ctx#unify_typs self typl typr)
 

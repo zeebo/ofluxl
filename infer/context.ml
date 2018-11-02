@@ -14,7 +14,7 @@ type t =
   ; insert: string -> Scheme.t -> unit
   ; resolve: string -> Type.t
   ; scope: Scheme.t Map.M(String).t -> (t -> Type.t) -> Type.t
-  ; solve: unifier -> Env.t * Kind.t Hashtbl.M(Tvar).t
+  ; solve: unifier -> Scheme.t Hashtbl.M(String).t * Kind.t Hashtbl.M(Tvar).t
   >
 
 (* unifier holds unification logic, and is given a unification type
@@ -137,11 +137,16 @@ let default () = (object (self)
     let ut = (object (self)
       val kinds = Hashtbl.create (module Tvar)
       val mapping = Hashtbl.create (module Tvar)
-      val mutable env = env
+      val env = Hashtbl.of_alist_exn (module String) (Map.to_alist env)
 
       (* result returns the typed environment and relevant kinds *)
       method result =
-        env, Hashtbl.filter_keys kinds ~f:(Set.mem @@ Env.ftv env)
+        (* compute the set of type variables to prune the kinds *)
+        let vars table ~f = Hashtbl.data table |> List.map ~f |> Set.union_list (module Tvar) in
+        let kind_vars = vars kinds ~f:Kind.ftv in
+        let typ_vars = vars env ~f:(fun (typ, _) -> Type.ftv typ) in
+        let all_vars = Set.union kind_vars typ_vars in
+        env, Hashtbl.filter_keys kinds ~f:(Set.mem all_vars)
 
       (* tvar_substitute is a helper to apply the substitution mapping
        * to the type variable *)
@@ -156,7 +161,7 @@ let default () = (object (self)
         (* update our state with the new mapping information *)
         Hashtbl.set mapping ~key:name ~data:typ;
         Hashtbl.map_inplace kinds ~f:(Kind.substitute mapping);
-        env <- Env.substitute mapping env;
+        Hashtbl.map_inplace env ~f:(Scheme.substitute mapping);
 
         (* if it maps to a new name, then copy and merge the kinds *)
         begin match typ with
