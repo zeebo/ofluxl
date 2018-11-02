@@ -14,7 +14,7 @@ let solve_exn program =
   List.iter program ~f:(function
       | Ast.Expr expr ->
         let typ = Generate.generate ctx expr in
-        ctx#insert names#fresh (Scheme.empty typ)
+        ctx#insert names#fresh (ctx#generalize typ)
       | Ast.Assign (ident, expr) ->
         let typ = Generate.generate ctx expr in
         ctx#insert ident (ctx#generalize typ));

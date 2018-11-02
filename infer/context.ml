@@ -5,8 +5,7 @@ open Ofluxl_types
 
 (* t is some inference context. it is told the constraints and allows
  * the construction of type variables and enviornments. finally, it
- * holds the logic for driving solving.
-*)
+ * holds the logic for driving solving. *)
 type t =
   < kind_constraint: Type.t -> Kind.t -> unit
   ; typ_constraint: Type.t -> Type.t -> unit
@@ -19,16 +18,14 @@ type t =
   >
 
 (* unifier holds unification logic, and is given a unification type
- * for issuing recursive unification requests
-*)
+ * for issuing recursive unification requests *)
 and unifier =
   < typs: ut -> Type.t -> Type.t -> Type.t
   ; kinds: ut -> Kind.t -> Kind.t -> Kind.t
   >
 
 (* ut is the interface that a unifier uses to perform recursive
- * unifications.
-*)
+ * unifications. *)
 and ut =
   < unify_typs: unifier -> Type.t -> Type.t -> Type.t
   ; unify_kinds: unifier -> Kind.t -> Kind.t -> Kind.t
@@ -49,16 +46,14 @@ let default () = (object (self)
    *)
 
   (* add_kind_index allows the given kind to be looked up by the name
-   * if the provided type is a variable
-  *)
+   * if the provided type is a variable *)
   method add_kind_index name kind =
     Hashtbl.update kind_index name ~f:(function
         | Some kinds -> kind :: kinds
         | None -> [kind])
 
   (* instantiate creates a fresh type with all of the free type variables
-   * of the scheme updated to be new types
-  *)
+   * of the scheme updated to be new types *)
   method instantiate scheme =
     let typ, ftv = scheme in
 
@@ -105,8 +100,7 @@ let default () = (object (self)
     Type.Variable (Tvar.of_string @@ sprintf "a%d" name)
 
   (* generalize turns the typ into a scheme with the appropriate
-   * captured free type variables
-  *)
+   * captured free type variables *)
   method generalize typ =
     let eftv = Env.ftv env in
     let tftv = Type.ftv typ in
@@ -119,11 +113,8 @@ let default () = (object (self)
     let ftv = Set.union_list (module Tvar) kftv |> Set.union tftv in
     typ, Set.diff ftv eftv
 
-
-
   (* insert permanently adds the generalized type
-   * into the environment
-  *)
+   * into the environment *)
   method insert ident scheme =
     env <- Env.set env ident scheme
 
@@ -148,9 +139,12 @@ let default () = (object (self)
       val mapping = Hashtbl.create (module Tvar)
       val mutable env = env
 
+      (* result returns the typed environment and relevant kinds *)
       method result =
         env, Hashtbl.filter_keys kinds ~f:(Set.mem @@ Env.ftv env)
 
+      (* tvar_substitute is a helper to apply the substitution mapping
+       * to the type variable *)
       method tvar_substitute mapping name =
         match Hashtbl.find mapping name with
         | None -> name
@@ -187,12 +181,15 @@ let default () = (object (self)
         (* update the environment to include the mapping *)
         env <- Env.substitute mapping env
 
+      (* add_kind introduces the kind constraint under the name *)
       method add_kind unifier name kind =
         let name = self#tvar_substitute mapping name in
         Hashtbl.update kinds name ~f:(function
             | None -> kind
             | Some kind' -> self#unify_kinds unifier kind kind')
 
+      (* unify_typs asks the unifier what the two types unify as, and
+       * then updates the state with the results of that unification *)
       method unify_typs unifier left right =
         let left = Type.substitute mapping left in
         let right = Type.substitute mapping right in
@@ -204,6 +201,8 @@ let default () = (object (self)
         end;
         typ
 
+      (* unify_kinds asks the unifier what the two kinds unify as, and
+       * then updates the state with the result of that unification *)
       method unify_kinds unifier left right =
         let left = Kind.substitute mapping left in
         let right = Kind.substitute mapping right in
@@ -212,8 +211,6 @@ let default () = (object (self)
 
     List.iter kind_constraints ~f:(fun (name, kind) -> ut#add_kind unifier name kind);
     List.iter typ_constraints ~f:(fun (left, right) -> ignore @@ ut#unify_typs unifier left right);
-
     ut#result
-
 
 end :> t)
