@@ -108,7 +108,18 @@ let default () = (object (self)
    * captured free type variables
   *)
   method generalize typ =
-    typ, Set.diff (Type.ftv typ) (Env.ftv env)
+    let eftv = Env.ftv env in
+    let tftv = Type.ftv typ in
+    let kinds = Set.fold ~init:[] tftv ~f:(fun accum name ->
+        match Hashtbl.find kind_index name with
+        | Some kinds -> List.append accum kinds
+        | None -> accum )
+    in
+    let kftv = List.map kinds ~f:Kind.ftv in
+    let ftv = Set.union_list (module Tvar) kftv |> Set.union tftv in
+    typ, Set.diff ftv eftv
+
+
 
   (* insert permanently adds the generalized type
    * into the environment
