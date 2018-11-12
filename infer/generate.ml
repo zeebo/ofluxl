@@ -62,7 +62,15 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   | Func (args, body) ->
     let args, table, required = generate_func_args ctx args in
     let entries = Map.map args ~f:Scheme.empty in
-    let ret = ctx#scope entries (fun ctx -> generate ctx body) in
+    let ret = ctx#scope entries (fun ctx ->
+        let ret = ref ctx#fresh_variable in
+        List.iter body ~f:(function
+            | Expr expr -> ret := generate ctx expr
+            | Assign (ident, expr) ->
+              ret := generate ctx expr;
+              ctx#insert ident (ctx#generalize !ret));
+        !ret
+      ) in
     Func { args; table; required; ret }
 
   | Call (expr, args) ->

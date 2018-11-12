@@ -21,7 +21,7 @@ type expr =
   | Times of expr * expr
   | Div of expr * expr
   | Uminus of expr
-  | Func of (string * default option) list * expr
+  | Func of (string * default option) list * statement list
   | Call of expr * (string * expr) list
   | Pipe of expr * expr
   | List of expr list
@@ -36,9 +36,8 @@ type expr =
 and default =
   | DExpr of expr
   | DPipe
-[@@deriving sexp_of]
 
-type statement =
+and statement =
   | Assign of string * expr
   | Expr of expr
 [@@deriving sexp_of]

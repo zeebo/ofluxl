@@ -6,8 +6,10 @@ open Ofluxl_types
 let unifier = (object (self)
   method typs ctx (left: Type.t) (right: Type.t): Type.t =
     match left, right with
-    | Variable _, typr -> typr
-    | typl, Variable _ -> typl
+    | Variable name, typ | typ, Variable name ->
+      if Type.occurs name typ
+      then raise @@ Infer (Infinite (name, typ))
+      else typ
 
     | List typl, List typr -> List (ctx#unify_typs self typl typr)
 

@@ -41,10 +41,10 @@ let newline = "\r\n" | '\r' | '\n'
 let digit  = ['0'-'9']
 let digit2 = digit digit
 let digit4 = digit2 digit2
-let integer = digit+
+let integer = '-'? digit+
 let frac = '.' digit*
 let exp = ['e' 'E'] ['-' '+']? digit+
-let float = digit* frac? exp?
+let float = '-'? digit* frac? exp?
 let ident  = ['a'-'z' 'A'-'Z' '_'] ['a'-'z' 'A'-'Z' '_' '0'-'9']*
 
 rule token = parse
@@ -55,6 +55,7 @@ rule token = parse
     (* whitespace *)
     | white+  { token lexbuf }
     | newline { Lexing.new_line lexbuf; token lexbuf }
+    | ';'  { token lexbuf }
 
     (* arrow symbols *)
     | ')' white* "=>" white* '{' { emit RIGHT_PAREN_ARROW_LEFT_BRACE }
@@ -77,13 +78,6 @@ rule token = parse
     | '}'  { emit RIGHT_BRACE }
     | '='  { emit EQUAL }
     | ':'  { emit COLON }
-    | ';'  { emit SEMICOLON }
-
-    (* operators *)
-    | '+'  { emit PLUS }
-    | '-'  { emit MINUS }
-    | '*'  { emit TIMES }
-    | "|>" { emit PIPE }
 
     (* regex/division support *)
     | '/' { if not !can_regex then emit DIV else
@@ -98,16 +92,16 @@ rule token = parse
 
     (* literals *)
     | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 ('.' digit+)? 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
-    | (integer 'y')  (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")  (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')  (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')  (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')  (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')  (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')  (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")  (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")  (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
-    | (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")  { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')  (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")  (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')  (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')  (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')  (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')  (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')  (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")  (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")  (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
+    | '-'? (integer 'y')? (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")  { emit (DURATION (Lexing.lexeme lexbuf)) }
     | integer { emit (INTEGER (Lexing.lexeme lexbuf)) }
     | float   { emit (FLOAT (Lexing.lexeme lexbuf)) }
     | ident { emit (IDENT (Lexing.lexeme lexbuf)) }
@@ -121,6 +115,12 @@ rule token = parse
             lexbuf.lex_start_p <- start;
             emit (STRING string)
           }
+
+    (* operators *)
+    | '+'  { emit PLUS }
+    | '-'  { emit MINUS }
+    | '*'  { emit TIMES }
+    | "|>" { emit PIPE }
 
     (* everything else *)
     | eof      { EOF }

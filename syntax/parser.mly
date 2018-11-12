@@ -3,14 +3,14 @@
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
-%token EQUAL PLUS MINUS TIMES DIV UMINUS
+%token EQUAL PLUS MINUS TIMES DIV
 %token AND OR
 %token RETURN
 %token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX COMP
 %token <char> CHAR
-%token SEMICOLON EOF
+%token EOF
 
-%left RIGHT_PAREN_ARROW
+%nonassoc highest
 %left PLUS MINUS
 %left TIMES DIV
 %left COMP
@@ -19,6 +19,7 @@
 %left LEFT_PAREN
 %left LEFT_BRACKET DOT
 %left RETURN
+%nonassoc lowest
 
 %start <Ast.program> main
 
@@ -29,17 +30,17 @@ main:
     ;
 
 program:
-    | SEMICOLON* s = list(statement) { s }
+    | s = list(statement) { s }
     ;
 
 statement:
-    | i = IDENT EQUAL e = expr SEMICOLON+ { Ast.Assign (i, e) }
-    | e = expr SEMICOLON+ { Ast.Expr e }
+    | i = IDENT EQUAL e = expr %prec lowest { Ast.Assign (i, e) }
+    | e = expr %prec highest { Ast.Expr e }
     ;
 
 expr:
-    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr { Ast.Func (ps, e) }
-    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE e = expr RIGHT_BRACE { Ast.Func (ps, e) }
+    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [Ast.Expr e]) }
+    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE p = nonempty_list(statement) RIGHT_BRACE { Ast.Func (ps, p) }
     | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
@@ -53,7 +54,6 @@ expr:
     | e1 = expr MINUS e2 = expr { Ast.Minus (e1, e2) }
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
-    | MINUS e = expr { Ast.Uminus e }
     | e1 = expr PIPE e2 = expr { Ast.Pipe (e1, e2) }
     | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }

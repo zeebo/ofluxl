@@ -164,20 +164,20 @@ let default () = (object (self)
         Hashtbl.map_inplace env ~f:(Scheme.substitute mapping);
 
         (* if it maps to a new name, then copy and merge the kinds *)
-        begin match typ with
-          | Type.Variable name' -> begin
-              let kind = match Hashtbl.find kinds name, Hashtbl.find kinds name' with
-                | Some kind, Some kind' -> Some (self#unify_kinds unifier kind kind')
-                | Some kind, _ -> Some kind
-                | _, Some kind -> Some kind
-                | _ -> None
-              in
-              match kind with
-              | Some kind -> Hashtbl.set kinds ~key:name' ~data:kind
-              | None -> ()
-            end
-          | _ -> ()
-        end
+        match typ with
+        | Type.Variable name' -> begin
+            let kind = match Hashtbl.find kinds name, Hashtbl.find kinds name' with
+              | Some kind, Some kind' -> Some (self#unify_kinds unifier kind kind')
+              | Some kind, _ -> Some kind
+              | _, Some kind -> Some kind
+              | _ -> None
+            in
+            match kind with
+            | Some kind -> Hashtbl.set kinds ~key:name' ~data:kind
+            | None -> ()
+          end
+        | _ -> ()
+
 
       (* add_kind introduces the kind constraint under the name *)
       method add_kind unifier name kind =
