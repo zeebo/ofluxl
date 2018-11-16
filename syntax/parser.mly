@@ -11,6 +11,7 @@
 %token EOF
 
 %nonassoc highest
+%left RETURN
 %left PLUS MINUS
 %left TIMES DIV
 %left COMP
@@ -18,7 +19,6 @@
 %right PIPE
 %left LEFT_PAREN
 %left LEFT_BRACKET DOT
-%left RETURN
 %nonassoc lowest
 
 %start <Ast.program> main
