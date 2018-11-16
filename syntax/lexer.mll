@@ -58,7 +58,6 @@ rule token = parse
     | ';'  { token lexbuf }
 
     (* arrow symbols *)
-    | ')' white* "=>" white* '{' { emit RIGHT_PAREN_ARROW_LEFT_BRACE }
     | ')' white* "=>"            { emit RIGHT_PAREN_ARROW }
     | "<-"                       { emit PIPE_ARROW }
 

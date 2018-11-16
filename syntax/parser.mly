@@ -1,5 +1,4 @@
-%token DOT COMMA COLON PIPE PIPE_ARROW
-%token RIGHT_PAREN_ARROW RIGHT_PAREN_ARROW_LEFT_BRACE
+%token DOT COMMA COLON PIPE PIPE_ARROW RIGHT_PAREN_ARROW
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
@@ -25,6 +24,11 @@
 
 %%
 
+separated_trailing_list(delim, X):
+    | { [] }
+    | x = X { [x] }
+    | x = X delim xs = separated_trailing_list(delim, X) { x :: xs }
+
 main:
     | p = program EOF { p }
     ;
@@ -39,9 +43,9 @@ statement:
     ;
 
 expr:
-    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [Ast.Expr e]) }
-    | LEFT_PAREN ps = separated_list(COMMA, func_param) RIGHT_PAREN_ARROW_LEFT_BRACE p = nonempty_list(statement) RIGHT_BRACE { Ast.Func (ps, p) }
-    | e = expr LEFT_PAREN args = separated_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [Ast.Expr e]) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW LEFT_BRACE p = nonempty_list(statement) RIGHT_BRACE { Ast.Func (ps, p) }
+    | e = expr LEFT_PAREN args = separated_trailing_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
     | f = FLOAT { Ast.Float f }
@@ -55,8 +59,8 @@ expr:
     | e1 = expr TIMES e2 = expr { Ast.Times (e1, e2) }
     | e1 = expr DIV e2 = expr { Ast.Div (e1, e2) }
     | e1 = expr PIPE e2 = expr { Ast.Pipe (e1, e2) }
-    | LEFT_BRACKET es = separated_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
-    | LEFT_BRACE vs = separated_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
+    | LEFT_BRACKET es = separated_trailing_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
+    | LEFT_BRACE vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
     | e = expr DOT i = IDENT { Ast.Select (e, i) }
     | e = expr LEFT_BRACKET i = expr RIGHT_BRACKET { Ast.Index (e, i) }
     | LEFT_PAREN e = expr RIGHT_PAREN { e }
