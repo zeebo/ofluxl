@@ -21,7 +21,7 @@ type expr =
   | Times of expr * expr
   | Div of expr * expr
   | Uminus of expr
-  | Func of (string * default option) list * statement list
+  | Func of (string * default option) list * statement list * expr
   | Call of expr * (string * expr) list
   | Pipe of expr * expr
   | List of expr list

@@ -29,5 +29,5 @@ let substitute mapping env: t =
 
 let ftv env =
   Map.data env
-  |> List.map ~f:(fun (_, ftv) -> ftv)
+  |> List.map ~f:Scheme.ftv
   |> Set.union_list (module Tvar)

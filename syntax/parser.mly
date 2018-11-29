@@ -10,7 +10,6 @@
 %token EOF
 
 %nonassoc highest
-%left RETURN
 %left PLUS MINUS
 %left TIMES DIV
 %left COMP
@@ -43,8 +42,8 @@ statement:
     ;
 
 expr:
-    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [Ast.Expr e]) }
-    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW LEFT_BRACE p = nonempty_list(statement) RIGHT_BRACE { Ast.Func (ps, p) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [], e) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW LEFT_BRACE p = list(statement); RETURN e = expr RIGHT_BRACE { Ast.Func (ps, p, e) }
     | e = expr LEFT_PAREN args = separated_trailing_list(COMMA, colon_arg) RIGHT_PAREN { Ast.Call (e, args) }
     | i = IDENT { Ast.Ident i }
     | i = INTEGER { Ast.Integer i }
@@ -67,11 +66,12 @@ expr:
     | e1 = expr c = COMP e2 = expr { Ast.Comp (e1, c, e2) }
     | e1 = expr AND e2 = expr { Ast.And (e1, e2) }
     | e1 = expr OR e2 = expr { Ast.Or (e1, e2) }
-    | RETURN e = expr { Ast.Return e }
     ;
 
 colon_arg:
     | n = IDENT COLON e = expr { (n, e) }
+    | n = IDENT { (n, Ast.Ident n) }
+    | s = STRING COLON e = expr { (s, e) }
     ;
 
 func_param:
