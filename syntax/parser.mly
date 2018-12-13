@@ -12,8 +12,8 @@
 %nonassoc highest
 %left PLUS MINUS
 %left TIMES DIV
-%left COMP
 %left AND OR
+%left COMP
 %right PIPE
 %left LEFT_PAREN
 %left LEFT_BRACKET DOT
