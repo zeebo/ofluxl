@@ -133,6 +133,13 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   (*
    * comparisons
    *)
+  | Comp (left, "=~", right) ->
+    let typl = generate ctx left in
+    let typr = generate ctx right in
+    ctx#typ_constraint typl @@ Basic String;
+    ctx#typ_constraint typr @@ Basic Regex;
+    Basic Bool
+
   | Comp (left, _, right) ->
     let typl = generate ctx left in
     let typr = generate ctx right in
