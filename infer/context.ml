@@ -152,14 +152,13 @@ let default () = (object (self)
        * to the type variable *)
       method tvar_substitute mapping name =
         match Hashtbl.find mapping name with
-        | None -> name
-        | Some typ -> match typ with
-          | Type.Variable name -> name
-          | _ -> name
+        | Some (Type.Variable name) -> name
+        | _ -> name
 
       method update_name unifier name typ =
         (* update our state with the new mapping information *)
         Hashtbl.set mapping ~key:name ~data:typ;
+        Hashtbl.map_inplace mapping ~f:(Type.substitute mapping);
         Hashtbl.map_inplace kinds ~f:(Kind.substitute mapping);
         Hashtbl.map_inplace env ~f:(Scheme.substitute mapping);
 
@@ -177,7 +176,6 @@ let default () = (object (self)
             | None -> ()
           end
         | _ -> ()
-
 
       (* add_kind introduces the kind constraint under the name *)
       method add_kind unifier name kind =

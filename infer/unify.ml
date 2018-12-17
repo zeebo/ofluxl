@@ -64,16 +64,21 @@ let unifier = (object (self)
           | `Both (left, right) ->
             try Some (ctx#unify_typs self left right) with
             | Infer _ -> Some Invalid)
-      in
-      let upper = match upperl, upperr with
+      and upper = match upperl, upperr with
         | None, Some upperr -> Some upperr
         | Some upperl, None -> Some upperl
         | None, None -> None
         | Some upperl, Some upperr -> Some (Set.inter upperl upperr)
-      in
-      let lower =
+      and lower =
         Set.union lowerl lowerr
       in
+
+      begin match upper with
+        | Some upper ->
+          if Set.is_subset lower ~of_:upper then ()
+          else raise @@ Infer UnknownRecordAccess
+        | None -> ()
+      end;
 
       Record { fields; upper; lower }
 

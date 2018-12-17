@@ -105,8 +105,7 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
 
   | Record fields ->
     let typ = ctx#fresh_variable in
-    let fields, upper = generate_call_args ctx fields in
-    let lower, upper = Set.empty (module String), Some upper in
+    let fields, lower, upper = generate_record_fields ctx fields in
     ctx#kind_constraint typ @@ Record { fields; lower; upper };
     typ
 
@@ -185,3 +184,11 @@ and generate_call_args ctx args =
   in
 
   (args, Set.of_list (module String) @@ Map.keys args)
+
+(* generate the information for record fields *)
+and generate_record_fields ctx fields =
+  let fields = Map.of_alist_exn (module String) @@
+    List.map fields ~f:(fun (name, expr) -> (name, generate ctx expr))
+  in
+
+  (fields, Set.empty (module String), Some (Set.of_list (module String) @@ Map.keys fields))

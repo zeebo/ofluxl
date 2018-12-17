@@ -10,7 +10,7 @@ type t =
   | InvalidKind of Kind.t
   | InvalidType of Type.t
   | UnknownIdentifier of string
-  | UnknownRecordAccess of Set.M(String).t
+  | UnknownRecordAccess
 [@@deriving sexp_of]
 
 exception Infer of t [@@deriving sexp_of]
