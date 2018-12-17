@@ -113,7 +113,8 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   (*
    * projections
    *)
-  | Select (expr, field) ->
+  | Select (expr, field)
+  | Index (expr, String field) ->
     let typf = ctx#fresh_variable in
     let typ = generate ctx expr in
     let fields = Map.singleton (module String) field typf in
