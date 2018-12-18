@@ -1,0 +1,11 @@
+(executable
+    (name parse)
+    (modules parse)
+    (libraries ofluxl core_bench)
+)
+
+(executable
+    (name infer)
+    (modules infer)
+    (libraries ofluxl core_bench)
+)
