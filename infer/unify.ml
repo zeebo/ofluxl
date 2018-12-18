@@ -64,13 +64,14 @@ let unifier = (object (self)
           | `Both (left, right) ->
             try Some (ctx#unify_typs self left right) with
             | Infer _ -> Some Invalid)
+
       and upper = match upperl, upperr with
         | None, Some upperr -> Some upperr
         | Some upperl, None -> Some upperl
         | None, None -> None
         | Some upperl, Some upperr -> Some (Set.inter upperl upperr)
-      and lower =
-        Set.union lowerl lowerr
+
+      and lower = Set.union lowerl lowerr
       in
 
       begin match upper with
@@ -79,6 +80,12 @@ let unifier = (object (self)
           else raise @@ Infer UnknownRecordAccess
         | None -> ()
       end;
+
+      Set.iter lower ~f:(fun field ->
+          match Map.find fields field with
+          | Some Invalid -> raise @@ Infer (InvalidRecordAccess (field, fields))
+          | _ -> ());
+
 
       Record { fields; upper; lower }
 

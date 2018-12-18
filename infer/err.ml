@@ -11,6 +11,7 @@ type t =
   | InvalidType of Type.t
   | UnknownIdentifier of string
   | UnknownRecordAccess
+  | InvalidRecordAccess of (string * Type.t Map.M(String).t)
 [@@deriving sexp_of]
 
 exception Infer of t [@@deriving sexp_of]
