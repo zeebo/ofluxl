@@ -1,4 +1,11 @@
 (executable
     (name infer)
     (libraries ofluxl)
+    (modules infer)
+)
+
+(executable
+    (name parse)
+    (libraries ofluxl)
+    (modules parse)
 )
