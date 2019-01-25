@@ -55,7 +55,8 @@ rule token = parse
     (* whitespace *)
     | white+  { token lexbuf }
     | newline { Lexing.new_line lexbuf; token lexbuf }
-    | ';'  { token lexbuf }
+    | ';'     { token lexbuf }
+
 
     (* arrow symbols *)
     | ')' white* "=>"            { emit RIGHT_PAREN_ARROW }
