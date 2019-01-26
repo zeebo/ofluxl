@@ -7,6 +7,7 @@ with pkgs; mkShell {
 		dune
 
 		ocamlPackages.findlib
+		ocamlPackages.merlin
 
 		ocamlPackages.ppx_jane
 		ocamlPackages.base
