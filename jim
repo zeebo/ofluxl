@@ -1,0 +1,4 @@
+getJim  = (x) => ({name: "Jim", age: 30, weight: 100.0, x:x})
+name = (p) => p.name
+j = getJim(x: 5)
+name(p: j)

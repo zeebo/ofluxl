@@ -104,14 +104,7 @@ let default () = (object (self)
   method generalize typ =
     let eftv = Env.ftv env in
     let tftv = Type.ftv typ in
-    let kinds = Set.fold ~init:[] tftv ~f:(fun accum name ->
-        match Hashtbl.find kind_index name with
-        | Some kinds -> List.append accum kinds
-        | None -> accum )
-    in
-    let kftv = List.map kinds ~f:Kind.ftv in
-    let ftv = Set.union_list (module Tvar) kftv |> Set.union tftv in
-    typ, Set.diff ftv eftv
+    typ, Set.diff tftv eftv
 
   (* insert permanently adds the generalized type
    * into the environment *)
@@ -133,102 +126,20 @@ let default () = (object (self)
     typ
 
   (* solve checks all of the constraints and solves them *)
-  method solve unifier =
-    let ut = (object (self)
-      val kinds = Hashtbl.create (module Tvar)
-      val mapping = Hashtbl.create (module Tvar)
-      val env = Hashtbl.of_alist_exn (module String) (Map.to_alist env)
+  method solve _unifier =
+    List.iter typ_constraints ~f:(fun (a, b) ->
+      printf "%s <=> %s\n"
+        (Sexp.to_string_hum (Type.sexp_of_t a))
+        (Sexp.to_string_hum (Type.sexp_of_t b))
+      );
 
-      (* result returns the typed environment and relevant kinds *)
-      method result =
-        (* compute the set of type variables to prune the kinds *)
-        let vars table ~f = Hashtbl.data table |> List.map ~f |> Set.union_list (module Tvar) in
-        let kind_vars = vars kinds ~f:Kind.ftv in
-        let typ_vars = vars env ~f:(fun (typ, _) -> Type.ftv typ) in
-        let all_vars = Set.union kind_vars typ_vars in
-        let kinds = Hashtbl.filter_keys kinds ~f:(Set.mem all_vars) in
-        Hashtbl.map env ~f:(Scheme.substitute mapping),
-        Hashtbl.map kinds ~f:(Kind.substitute mapping)
+    println "";
 
-      (* tvar_substitute is a helper to apply the substitution mapping
-       * to the type variable *)
-      method tvar_substitute mapping name =
-        match Hashtbl.find mapping name with
-        | Some (Type.Variable name) -> name
-        | _ -> name
+    List.iter kind_constraints ~f:(fun (a, b) ->
+      printf "%s  => %s\n"
+        (Tvar.to_string a)
+        (Sexp.to_string_hum (Kind.sexp_of_t b))
+      );
 
-      method update_name unifier name typ =
-        (* update our mapping with the new information *)
-        let singleton = Hashtbl.of_alist_exn (module Tvar) [name, typ] in
-        Hashtbl.set mapping ~key:name ~data:typ;
-        Hashtbl.map_inplace mapping ~f:(Type.substitute singleton);
-        Hashtbl.map_inplace env ~f:(Scheme.substitute mapping);
-        Hashtbl.map_inplace kinds ~f:(Kind.substitute mapping);
-
-        (* make sure the kinds for the name are compatible with the type *)
-        let kind = Hashtbl.find kinds name in
-        begin match kind with
-          | Some kind ->
-            if not @@ Kind.compatible_with_typ kind typ
-            then raise @@ Infer (InvalidTypeForKind (typ, kind))
-            else ()
-          | None -> ()
-        end;
-
-        (* if it maps to a new name, then merge the kinds and store it in the new name *)
-        begin match typ with
-          | Type.Variable name' -> begin
-              let kind = match (kind, Hashtbl.find kinds name') with
-                | Some kind, Some kind' -> Some (self#unify_kinds unifier kind kind')
-                | Some kind, None       -> Some kind
-                | None,      Some kind  -> Some kind
-                | None,      None       -> None
-              in
-
-              match kind with
-              | Some kind ->
-                Hashtbl.set kinds ~key:name' ~data:kind;
-                Hashtbl.set kinds ~key:name ~data:kind
-              | None -> ()
-            end
-          | _ -> ()
-        end
-
-      (* add_kind introduces the kind constraint under the name *)
-      method add_kind unifier name kind =
-        let name = self#tvar_substitute mapping name in
-        let kind = Kind.substitute mapping kind in
-        Hashtbl.update kinds name ~f:(function
-            | None -> kind
-            | Some kind' -> self#unify_kinds unifier kind kind')
-
-      (* unify_typs asks the unifier what the two types unify as, and
-       * then updates the state with the results of that unification *)
-      method unify_typs unifier left right =
-        let left = Type.substitute mapping left in
-        let right = Type.substitute mapping right in
-
-        let typ = unifier#typs (self :> ut) left right in
-        begin match left, right with
-          | Variable name, _ -> self#update_name unifier name typ
-          | _, Variable name -> self#update_name unifier name typ
-          | _ -> ()
-        end;
-
-        typ
-
-      (* unify_kinds asks the unifier what the two kinds unify as, and
-       * then updates the state with the result of that unification *)
-      method unify_kinds unifier left right =
-        let left = Kind.substitute mapping left in
-        let right = Kind.substitute mapping right in
-
-        let kind = unifier#kinds (self :> ut) left right in
-        kind
-    end) in
-
-    List.iter kind_constraints ~f:(fun (name, kind) -> ut#add_kind unifier name kind);
-    List.iter typ_constraints ~f:(fun (left, right) -> ignore @@ ut#unify_typs unifier left right);
-    ut#result
-
+    throw UnknownRecordAccess
 end :> t)
