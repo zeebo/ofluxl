@@ -4,12 +4,15 @@ open Ofluxl_types
 type t = Scheme.t Map.M(String).t [@@deriving sexp_of]
 
 let default: t =
-  let mk name typ = (name, Scheme.empty typ) in
+  (* let mk name typ = (name, Scheme.empty typ) in *)
 
   Map.of_alist_exn (module String)
+    []
+    (*
     [ mk "true" @@ Basic Bool
     ; mk "false" @@ Basic Bool
     ]
+    *)
 
 let merge (env: t) args: t =
   Map.merge env args ~f:(fun ~key:_ -> function

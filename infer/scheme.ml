@@ -9,7 +9,7 @@ let ftv (typ, ftv) = Set.union (Type.ftv typ) ftv
 
 let substitute mapping (typ, ftv): t =
   let ftv = Set.filter_map (module Tvar) ftv ~f:(fun name ->
-      match Hashtbl.find mapping name with
+      match Map.find mapping name with
       | None -> Some name
       | Some typ -> match typ with
         | Type.Variable name' -> Some name'

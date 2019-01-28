@@ -3,92 +3,97 @@ open Err
 open Ofluxl_std
 open Ofluxl_types
 
-let unifier = (object (self)
-  method typs ctx (left: Type.t) (right: Type.t): Type.t =
-    match left, right with
-    | Variable name, typ | typ, Variable name ->
-      if Type.occurs name typ
-      then raise @@ Infer (Infinite (name, typ))
-      else typ
+let constrained ctx typl typr =
+  let typ = ctx#fresh_variable in
+  ctx#typ_constraint typl typ;
+  ctx#typ_constraint typr typ;
+  typ
 
-    | List typl, List typr -> List (ctx#unify_typs self typl typr)
+let typs ctx (left: Type.t) (right: Type.t): Type.t =
+  match left, right with
+  | Variable name, typ | typ, Variable name ->
+    if Type.occurs name typ
+    then raise @@ Infer (Infinite (name, typ))
+    else typ
 
-    | Func {args = argsl; table = tablel; required = requiredl; ret = retl },
-      Func {args = argsr; table = tabler; required = requiredr; ret = retr } ->
+  | List typl, List typr ->
+    List (constrained ctx typl typr)
 
-      if not @@ Bool.equal tablel tabler ||
-         not @@ Set.is_subset requiredl ~of_:requiredr
-      then
-        raise @@ Infer (MismatchedTypes (left, right))
-      else
-        Func
-          { table = tabler
-          ; required = requiredr
-          ; ret = ctx#unify_typs self retl retr
-          ; args = Map.merge argsl argsr ~f:(fun ~key -> function
-                | `Left typ ->
-                  if Set.mem requiredl key
-                  then raise @@ Infer (MismatchedTypes (left, right))
-                  else Some typ
+  | Func {args = argsl; table = tablel; required = requiredl; ret = retl },
+    Func {args = argsr; table = tabler; required = requiredr; ret = retr } ->
 
-                | `Right _ ->
-                  raise @@ Infer (MismatchedTypes (left, right))
+    if not @@ Bool.equal tablel tabler ||
+       not @@ Set.is_subset requiredl ~of_:requiredr
+    then
+      raise @@ Infer (MismatchedTypes (left, right))
+    else
+      Func
+        { table = tabler
+        ; required = requiredr
+        ; ret = constrained ctx retl retr
+        ; args = Map.merge argsl argsr ~f:(fun ~key -> function
+              | `Left typ ->
+                if Set.mem requiredl key
+                then raise @@ Infer (MismatchedTypes (left, right))
+                else Some typ
 
-                | `Both (typl, typr) ->
-                  Some (ctx#unify_typs self typl typr))
-          }
+              | `Right _ ->
+                raise @@ Infer (MismatchedTypes (left, right))
 
-    | typl, typr ->
-      if not @@ Type.equal typl typr
-      then raise @@ Infer (MismatchedTypes (left, right))
-      else typr
+              | `Both (typl, typr) ->
+                Some (constrained ctx typl typr)
+            )
+        }
 
-  method kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
-    match left, right with
-    | Cls Cmp, Cls Cmp -> Cls Cmp
-    | Cls Cmp, Cls Add -> Cls Add
-    | Cls Cmp, Cls Num -> Cls Num
-    | Cls Add, Cls Cmp -> Cls Add
-    | Cls Add, Cls Add -> Cls Add
-    | Cls Add, Cls Num -> Cls Num
-    | Cls Num, Cls Cmp -> Cls Num
-    | Cls Num, Cls Add -> Cls Num
-    | Cls Num, Cls Num -> Cls Num
+  | typl, typr ->
+    if not @@ Type.equal typl typr
+    then raise @@ Infer (MismatchedTypes (left, right))
+    else typr
 
-    | Record { fields = fieldsl; upper = upperl; lower = lowerl },
-      Record { fields = fieldsr; upper = upperr; lower = lowerr } ->
+let kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
+  match left, right with
+  | Cls Cmp, Cls Cmp -> Cls Cmp
+  | Cls Cmp, Cls Add -> Cls Add
+  | Cls Cmp, Cls Num -> Cls Num
+  | Cls Add, Cls Cmp -> Cls Add
+  | Cls Add, Cls Add -> Cls Add
+  | Cls Add, Cls Num -> Cls Num
+  | Cls Num, Cls Cmp -> Cls Num
+  | Cls Num, Cls Add -> Cls Num
+  | Cls Num, Cls Num -> Cls Num
 
-      let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
-          | `Left left -> Some left
-          | `Right right -> Some right
-          | `Both (left, right) ->
-            try Some (ctx#unify_typs self left right) with
-            | Infer _ -> Some Invalid)
+  | Record { fields = fieldsl; upper = upperl; lower = lowerl },
+    Record { fields = fieldsr; upper = upperr; lower = lowerr } ->
 
-      and upper = match upperl, upperr with
-        | None, Some upperr -> Some upperr
-        | Some upperl, None -> Some upperl
-        | None, None -> None
-        | Some upperl, Some upperr -> Some (Set.inter upperl upperr)
+    let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
+        | `Left typl -> Some typl
+        | `Right typr -> Some typr
+        | `Both (typl, typr) ->
+          try Some (constrained ctx typl typr) with
+          | Infer _ -> Some Invalid)
 
-      and lower = Set.union lowerl lowerr
-      in
+    and upper = match upperl, upperr with
+      | None, Some upperr -> Some upperr
+      | Some upperl, None -> Some upperl
+      | None, None -> None
+      | Some upperl, Some upperr -> Some (Set.inter upperl upperr)
 
-      begin match upper with
-        | Some upper ->
-          if Set.is_subset lower ~of_:upper then ()
-          else raise @@ Infer UnknownRecordAccess
-        | None -> ()
-      end;
+    and lower = Set.union lowerl lowerr
+    in
 
-      Set.iter lower ~f:(fun field ->
-          match Map.find fields field with
-          | Some Invalid -> raise @@ Infer (InvalidRecordAccess (field, fields))
-          | _ -> ());
+    begin match upper with
+      | Some upper ->
+        if Set.is_subset lower ~of_:upper then ()
+        else raise @@ Infer UnknownRecordAccess
+      | None -> ()
+    end;
+
+    Set.iter lower ~f:(fun field ->
+        match Map.find fields field with
+        | Some Invalid -> raise @@ Infer (InvalidRecordAccess (field, fields))
+        | _ -> ());
 
 
-      Record { fields; upper; lower }
+    Record { fields; upper; lower }
 
-    | _ -> raise @@ Infer (MismatchedKinds (left, right))
-
-end :> Context.unifier)
+  | _ -> raise @@ Infer (MismatchedKinds (left, right))

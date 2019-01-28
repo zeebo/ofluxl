@@ -47,7 +47,7 @@ let rec substitute mapping typ =
     let ret = substitute mapping func.ret in
     Func { func with args; ret }
   | Variable name ->
-    match Hashtbl.find mapping name with
+    match Map.find mapping name with
     | None -> typ
     | Some typ -> typ
 
