@@ -3,6 +3,8 @@ open Err
 open Ofluxl_std
 open Ofluxl_types
 
+let name = ref 0
+
 type constr =
   | Type of Type.t * Type.t
   | Kind of Tvar.t * Kind.t
@@ -20,15 +22,13 @@ type t =
   ; insert: string -> Scheme.t -> unit
   ; resolve: string -> Type.t
   ; scope: Scheme.t Map.M(String).t -> (t -> Type.t) -> Type.t
-  ; pop_constraint: constr option
+  ; constraints: constr list
   ; env: Env.t
   >
 
 (* default constructs the default inference context *)
 let default () = (object (self)
-
   (* inference state *)
-  val mutable name = 0
   val mutable env = Env.default
   val mutable constraints = []
 
@@ -74,8 +74,8 @@ let default () = (object (self)
 
   (* generates a fresh variable name *)
   method fresh_name =
-    name <- name + 1;
-    Tvar.of_string @@ sprintf "a%d" name
+    name := !name + 1;
+    Tvar.of_string @@ sprintf "a%d" !name
 
   (* generates a fresh variable type *)
   method fresh_variable =
@@ -112,16 +112,11 @@ let default () = (object (self)
     env <- saved;
     typ
 
-  (* pop_constraint removes and returns a constraint *)
-  method pop_constraint =
-    match List.rev constraints with
-    | [] -> None
-    | c :: cs ->
-      constraints <- cs;
-      Some c
+  (* constraints returns the current set of constraints *)
+  method constraints =
+    constraints
 
   (* env returns the current environment *)
   method env =
     env
-
 end :> t)
