@@ -13,6 +13,7 @@ and record =
   { fields: Type.t Map.M(String).t
   ; upper: Set.M(String).t option
   ; lower: Set.M(String).t
+  ; from: Type.t option
   }
 [@@deriving sexp_of]
 

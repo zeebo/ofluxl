@@ -26,6 +26,7 @@ type expr =
   | Pipe of expr * expr
   | List of expr list
   | Record of (string * expr) list
+  | With of expr * (string * expr) list
   | Select of expr * string
   | Index of expr * expr
   | Comp of expr * string * expr

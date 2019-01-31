@@ -62,8 +62,8 @@ let kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
   | Cls Num, Cls Add -> Cls Num
   | Cls Num, Cls Num -> Cls Num
 
-  | Record { fields = fieldsl; upper = upperl; lower = lowerl },
-    Record { fields = fieldsr; upper = upperr; lower = lowerr } ->
+  | Record { fields = fieldsl; upper = upperl; lower = lowerl; from = froml },
+    Record { fields = fieldsr; upper = upperr; lower = lowerr; from = fromr } ->
 
     let fields = Map.merge fieldsl fieldsr ~f:(fun ~key:_ -> function
         | `Left typl -> Some typl
@@ -79,7 +79,11 @@ let kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
       | Some upperl, Some upperr -> Some (Set.inter upperl upperr)
 
     and lower = Set.union lowerl lowerr
+
+    (* and from = Some (constrained ctx froml fromr) *)
     in
+
+    ignore froml; ignore fromr;
 
     begin match upper with
       | Some upper ->
@@ -93,7 +97,6 @@ let kinds ctx (left: Kind.t) (right: Kind.t): Kind.t =
         | Some Invalid -> raise @@ Infer (InvalidRecordAccess (field, fields))
         | _ -> ());
 
-
-    Record { fields; upper; lower }
+    Record { fields; upper; lower; from = None }
 
   | _ -> raise @@ Infer (MismatchedKinds (left, right))

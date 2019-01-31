@@ -106,7 +106,14 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   | Record fields ->
     let typ = ctx#fresh_variable in
     let fields, lower, upper = generate_record_fields ctx fields in
-    ctx#kind_constraint typ @@ Record { fields; lower; upper };
+    ctx#kind_constraint typ @@ Record { fields; lower; upper; from = None };
+    typ
+
+  | With (expr, fields) ->
+    let typ = ctx#fresh_variable in
+    let from = Some (generate ctx expr) in
+    let fields, lower, upper = generate_record_fields ctx fields in
+    ctx#kind_constraint typ @@ Record { fields; lower; upper; from };
     typ
 
   (*
@@ -119,7 +126,7 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
     let fields = Map.singleton (module String) field typf in
     let lower = Set.singleton (module String) field in
     let upper = None (* universe *) in
-    ctx#kind_constraint typ @@ Record { fields; lower; upper };
+    ctx#kind_constraint typ @@ Record { fields; lower; upper; from = None };
     typf
 
   | Index (expr, index) ->

@@ -1,10 +1,11 @@
+%token SEMICOLON
 %token DOT COMMA COLON PIPE PIPE_ARROW RIGHT_PAREN_ARROW
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
 %token EQUAL PLUS MINUS TIMES DIV
 %token AND OR
-%token RETURN
+%token RETURN WITH
 %token <string> INTEGER FLOAT IDENT STRING DURATION TIME REGEX COMP
 %token <char> CHAR
 %token EOF
@@ -34,7 +35,7 @@ main:
     ;
 
 program:
-    | s = list(statement) { s }
+    | s = separated_trailing_list(SEMICOLON+, statement) { s }
     ;
 
 statement:
@@ -62,6 +63,7 @@ value:
     | c = CHAR { Ast.Char c }
     | LEFT_BRACKET es = separated_trailing_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
+    | LEFT_BRACE e = expr WITH vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.With (e, vs) }
     ;
 
 binary:

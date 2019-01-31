@@ -4,6 +4,7 @@ open Parser
 
 exception Error of string * Lexing.position
 
+let add_semicolon = ref false
 let can_regex = ref true
 
 let emit token =
@@ -14,6 +15,20 @@ let emit token =
     | COMP "=~" (* maybe this should be any comparison *)
     | COLON -> can_regex := true
     | _     -> can_regex := false
+    end;
+    begin match token with
+    | COMMA
+    | PLUS
+    | MINUS
+    | TIMES
+    | PIPE
+    | LEFT_PAREN
+    | LEFT_BRACKET
+    | LEFT_BRACE
+    | EQUAL
+    | SEMICOLON
+    | COLON -> add_semicolon := false
+    | _     -> add_semicolon := true
     end;
     token
 
@@ -54,8 +69,14 @@ rule token = parse
 
     (* whitespace *)
     | white+  { token lexbuf }
-    | newline { Lexing.new_line lexbuf; token lexbuf }
-    | ';'     { token lexbuf }
+    | newline { 
+        Lexing.new_line lexbuf;
+        if !add_semicolon
+        then emit SEMICOLON
+        else token lexbuf }
+
+    (* expression terminators *)
+    | ';'     { emit SEMICOLON }
 
 
     (* arrow symbols *)
@@ -87,8 +108,9 @@ rule token = parse
             emit (REGEX regex)
           }
 
-    (* return is weird *)
-    | "return" { RETURN }
+    (* some keywords *)
+    | "return" { emit RETURN }
+    | "with"   { emit WITH }
 
     (* literals *)
     | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 ('.' digit+)? 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
