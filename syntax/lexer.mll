@@ -72,7 +72,8 @@ rule token = parse
     | newline { 
         Lexing.new_line lexbuf;
         if !add_semicolon
-        then emit SEMICOLON
+        (* then emit SEMICOLON *)
+        then token lexbuf
         else token lexbuf }
 
     (* expression terminators *)

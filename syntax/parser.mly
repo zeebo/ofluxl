@@ -10,14 +10,12 @@
 %token <char> CHAR
 %token EOF
 
-%nonassoc first
-%nonassoc second
-%nonassoc third
+%nonassoc highest
 %left PLUS MINUS
 %left TIMES DIV
 %left AND OR
 %left COMP
-%right PIPE
+%left PIPE
 %left LEFT_PAREN
 %left LEFT_BRACKET DOT
 
@@ -39,13 +37,13 @@ program:
     ;
 
 statement:
-    | i = IDENT EQUAL e = expr %prec first { Ast.Assign (i, e) }
-    | e = expr %prec second { Ast.Expr e }
+    | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
+    | e = expr { Ast.Expr e }
     ;
 
 lambda:
-    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec third { Ast.Func (ps, [], e) }
-    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW LEFT_BRACE p = list(statement); RETURN e = expr RIGHT_BRACE { Ast.Func (ps, p, e) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW e = expr %prec highest { Ast.Func (ps, [], e) }
+    | LEFT_PAREN ps = separated_trailing_list(COMMA, func_param) RIGHT_PAREN_ARROW LEFT_BRACE p = separated_trailing_list(SEMICOLON+, statement); RETURN e = expr; SEMICOLON? RIGHT_BRACE { Ast.Func (ps, p, e) }
     ;
 
 call:

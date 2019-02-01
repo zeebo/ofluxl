@@ -1,0 +1,5 @@
+(executable
+    (name futhark)
+    (preprocess (pps ppx_jane))
+    (libraries ofluxl_syntax ofluxl_std ofluxl_types)
+)
