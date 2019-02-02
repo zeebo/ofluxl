@@ -15,5 +15,9 @@ with pkgs; mkShell {
 		ocamlPackages.ppx_jane
 		ocamlPackages.base
 		ocamlPackages.menhir
+		ocamlPackages.js_of_ocaml
+		ocamlPackages.js_of_ocaml-ppx
+		ocamlPackages.js_of_ocaml-compiler
+		ocamlPackages.ppx_tools_versioned
 	];
 }

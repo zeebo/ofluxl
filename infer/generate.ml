@@ -92,9 +92,6 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   | Pipe _ as expr -> (* if the right side of the pipe isn't a call, it's a problem *)
     raise @@ Invalid expr
 
-  | Return expr ->
-    generate ctx expr
-
   (*
    * composite types
    *)

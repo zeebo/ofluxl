@@ -96,9 +96,6 @@ let rec fully_known scope = function
     fully_known scope left
     && fully_known scope right
 
-  | Return expr ->
-    fully_known scope expr
-
 let rec peval_expr scope = function
   | Ast.Ident name as expr ->
     begin match Map.find scope name with
@@ -278,9 +275,6 @@ let rec peval_expr scope = function
       | Bool l, Bool r -> Bool (l && r)
       | left, right -> Or (left, right)
     end
-
-  | Return expr ->
-    peval_expr scope expr
 
 and peval_statements scope = function
   | Ast.Assign (name, expr) :: tail ->

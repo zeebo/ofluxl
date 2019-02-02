@@ -32,7 +32,6 @@ type expr =
   | Comp of expr * string * expr
   | And of expr * expr
   | Or of expr * expr
-  | Return of expr
 
 and default =
   | DExpr of expr
