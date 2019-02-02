@@ -5,5 +5,6 @@
         ofluxl_std
         ofluxl_syntax
         ofluxl_types
+        ofluxl_partial
     )
 )
