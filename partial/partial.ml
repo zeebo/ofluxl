@@ -212,8 +212,35 @@ let rec peval_expr scope = function
     end
 
   | Pipe (left, right) ->
-    (* TODO(jeff): handling pipes *)
-    Pipe (left, right)
+    begin match peval_expr scope left, right with
+      (* we pipe only directly into a call expression *)
+      | lexpr, Call (rexpr, rargs) ->
+
+        (* evaluate the callee and arguments fully *)
+        let rexpr = peval_expr scope rexpr
+        and rargs = List.map rargs ~f:(fun (name, expr) -> (name, peval_expr scope expr))
+        in
+
+        (* the right must now have resolved to a function *)
+        begin match rexpr with
+          | Func (params, _, _) ->
+            let is_pipe (_, def) = match def with | Some Ast.DPipe -> true | _ -> false in
+            begin match List.find params ~f:is_pipe with
+              (* if there is an argument named for the pipe, then transform this pipe into
+               * a call of the right hand side with the left hand side for the pipe
+              *)
+              | Some (name, _) ->
+                let expr = Ast.Call (rexpr, List.Assoc.add rargs ~equal:String.equal name lexpr) in
+                peval_expr scope expr
+
+              | _ -> Pipe (lexpr, Call (rexpr, rargs))
+            end
+
+          | _ -> Pipe (lexpr, Call (rexpr, rargs))
+        end
+
+      | left, right -> Pipe (left, right)
+    end
 
   | List exprs ->
     List (List.map exprs ~f:(peval_expr scope))
