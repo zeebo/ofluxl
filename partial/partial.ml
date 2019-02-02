@@ -60,7 +60,7 @@ let rec fully_known scope = function
 
     let scope =
       args
-      |> List.map ~f:(fun (name, _) -> name)
+      |> List.map ~f:fst
       |> Set.of_list (module String)
       |> Set.union scope
     in
@@ -150,7 +150,8 @@ let rec peval_expr scope = function
     end
 
   | Func (args, body, ret) ->
-    let scope, body = peval_statements scope body in
+    let known = List.map args ~f:fst |> Set.of_list (module String) in
+    let scope, body = peval_statements scope known body in
     Func (args, body, peval_expr scope ret)
 
   | Call (func, args) ->
@@ -161,18 +162,12 @@ let rec peval_expr scope = function
     begin match peval_expr scope func with
       | Func (params, body, ret) as func ->
         (* ensure we have all the arguments necessary for non-default values *)
-        let total =
-          List.map params ~f:(fun (name, _) -> name)
-          |> Set.of_list (module String)
-
+        let total = List.map params ~f:fst |> Set.of_list (module String)
+        and provided = List.map args ~f:fst |> Set.of_list (module String)
         and required =
           List.filter_map params ~f:(function
               | name, None -> Some name
               | _ -> None)
-          |> Set.of_list (module String)
-
-        and provided =
-          List.map args ~f:(fun (name, _) -> name)
           |> Set.of_list (module String)
         in
 
@@ -199,7 +194,7 @@ let rec peval_expr scope = function
 
           (* evaluate the function body in the new scope *)
           let scope', _ =
-            peval_statements scope' body
+            peval_statements scope' (Set.empty (module String)) body
           in
 
           (* evaluate the return value in the context of that scope *)
@@ -300,14 +295,14 @@ let rec peval_expr scope = function
       | left, right -> Or (left, right)
     end
 
-and peval_statements scope statements =
+and peval_statements scope known statements =
   let scope, statements = List.fold statements
       ~init:(scope, [])
       ~f:(fun (scope, acc) -> function
           | Ast.Assign (name, expr) ->
             let expr = peval_expr scope expr in
             let scope = Map.set scope ~key:name ~data:expr in
-            if fully_known (scope_keys scope) expr
+            if fully_known (Set.union known @@ scope_keys scope) expr
             then scope, acc
             else scope, Ast.Assign (name, expr) :: acc
           | Ast.Expr expr ->
@@ -317,4 +312,4 @@ and peval_statements scope statements =
   scope, List.rev statements
 
 and peval_program program =
-  snd @@ peval_statements (Map.empty (module String)) program
+  snd @@ peval_statements (Map.empty (module String)) (Set.empty (module String)) program
