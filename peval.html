@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+          "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Flux Partial Eval</title>
+    <script type="text/javascript" src="jslib.bc.js"></script>
+    <script type="text/javascript">
+      function update() {
+        document.getElementById("output").innerText = peval(document.getElementById("input").value)
+      }
+    </script>
+  </head>
+  <body>
+    <textarea id="input" rows=20 cols=100 oninput='update()'>
+add = (table=<-, x) => table + x;
+sub = (table=<-, x) => table - x;
+mul = (table=<-, x) => table * x;
+div = (table=<-, x) => table / x;
+
+5
+  |> add(x:2)
+  |> add(x:3)
+  |> add(x:y)
+  |> sub(x:10);
+</textarea>
+    <button onclick='update()'>Eval</button>
+    <hr />
+    <pre id="output"></pre>
+    <script type="text/javascript">update()</script>
+  </body>
+</html>
