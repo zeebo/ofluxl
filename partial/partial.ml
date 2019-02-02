@@ -132,14 +132,14 @@ let rec peval_expr scope = function
     begin match peval_expr scope left, peval_expr scope right with
       | Integer l, Integer r -> Eval.mul (module Eval.Integer) l r
       | Float l, Float r -> Eval.mul (module Eval.Float) l r
-      | left, right -> Minus (left, right)
+      | left, right -> Times (left, right)
     end
 
   | Div (left, right) ->
     begin match peval_expr scope left, peval_expr scope right with
       | Integer l, Integer r -> Eval.div (module Eval.Integer) l r
       | Float l, Float r -> Eval.div (module Eval.Float) l r
-      | left, right -> Minus (left, right)
+      | left, right -> Div (left, right)
     end
 
   | Uminus expr ->

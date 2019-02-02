@@ -13,16 +13,22 @@ let positions (lexbuf: Lexing.lexbuf) =
   start.pos_cnum - start.pos_bol,
   curr.pos_cnum - curr.pos_bol
 
-let print_context (lexbuf: Lexing.lexbuf) line =
+let context_to_string (lexbuf: Lexing.lexbuf) line =
+  let t = tracker () in
   let lines = lexbuf.lex_buffer  |> Bytes.to_string |> String.split_lines in
   (* TODO(jeff): this traverses the list 3 times for no reason lol *)
   for n = line - 3 to line - 1 do
     match List.nth lines n with
-    | Some line -> printf "%4d: %s\n" (n + 1) line
+    | Some line -> t#add @@ sprintf "%4d: %s" (n + 1) line
     | None -> ()
-  done
+  done;
+  t#finish
 
-let print error =
+let print_context (lexbuf: Lexing.lexbuf) line =
+  print_endline @@ context_to_string lexbuf line
+
+let to_string error =
+  let t= tracker () in
   let lexbuf, kind = match error with
     | Lexing lexbuf -> lexbuf, "syntax"
     | Parsing lexbuf -> lexbuf, "parse"
@@ -30,12 +36,16 @@ let print error =
   let line, s_col, c_col = positions lexbuf in
   let carrots = c_col - s_col in
   if carrots = 0 then
-    printf "%s error: unexpected EOF\n" kind
+    t#add @@ sprintf "%s error: unexpected EOF" kind
   else begin
-    printf "%s error:\n\n" kind;
-    print_context lexbuf line;
-    printf "%s%s%s\n"
+    t#add @@ sprintf "%s error:\n" kind;
+    t#add @@ context_to_string lexbuf line;
+    t#add @@ sprintf "%s%s%s"
       (String.make 6 ' ')
       (String.make s_col '~')
       (String.make carrots '^')
-  end
+  end;
+  t#finish
+
+let print error =
+  print_endline @@ to_string error

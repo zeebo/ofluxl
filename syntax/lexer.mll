@@ -69,7 +69,7 @@ rule token = parse
 
     (* whitespace *)
     | white+  { token lexbuf }
-    | newline { 
+    | newline {
         Lexing.new_line lexbuf;
         if !add_semicolon
         (* then emit SEMICOLON *)
@@ -113,6 +113,12 @@ rule token = parse
     | "return" { emit RETURN }
     | "with"   { emit WITH }
 
+    (* operators *)
+    | '+'  { emit PLUS }
+    | '-'  { emit MINUS }
+    | '*'  { emit TIMES }
+    | "|>" { emit PIPE }
+
     (* literals *)
     | digit4 '-' digit2 '-' digit2 'T' digit2 ':' digit2 ':' digit2 ('.' digit+)? 'Z' { emit (TIME (Lexing.lexeme lexbuf)) }
     | '-'? (integer 'y')  (integer "mo")? (integer 'w')? (integer 'd')? (integer 'h')? (integer 'm')? (integer 's')? (integer "ms")? (integer "us")? (integer "ns")? { emit (DURATION (Lexing.lexeme lexbuf)) }
@@ -138,12 +144,6 @@ rule token = parse
             lexbuf.lex_start_p <- start;
             emit (STRING string)
           }
-
-    (* operators *)
-    | '+'  { emit PLUS }
-    | '-'  { emit MINUS }
-    | '*'  { emit TIMES }
-    | "|>" { emit PIPE }
 
     (* everything else *)
     | eof      { EOF }

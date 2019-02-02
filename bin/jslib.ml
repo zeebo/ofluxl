@@ -76,8 +76,8 @@ let peval str =
     program
     |> Partial.peval_program
     |> program_to_string
-  | Error _ ->
-    "parse error"
+  | Error err ->
+    Syntax.Err.to_string err
 
 let () =
   Js.export_all (object%js

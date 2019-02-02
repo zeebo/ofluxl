@@ -22,3 +22,5 @@
     (libraries ofluxl js_of_ocaml)
     (modules jslib)
 )
+
+(alias (name peval-html) (deps jslib.bc.js peval.html))
