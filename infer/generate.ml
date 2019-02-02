@@ -17,6 +17,7 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
   | Time _     -> Basic Time
   | Regex _    -> Basic Regex
   | Char _     -> Basic Char
+  | Bool _     -> Basic Bool
   | String _   -> Basic String
 
   (*
@@ -109,12 +110,14 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
     ctx#kind_constraint typ @@ Record { fields; lower; upper; from = None };
     typ
 
+  (*
   | With (expr, fields) ->
     let typ = ctx#fresh_variable in
     let from = Some (generate ctx expr) in
     let fields, lower, upper = generate_record_fields ctx fields in
     ctx#kind_constraint typ @@ Record { fields; lower; upper; from };
     typ
+  *)
 
   (*
    * projections

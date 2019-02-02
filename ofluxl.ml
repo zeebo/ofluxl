@@ -4,3 +4,4 @@ module Infer = Ofluxl_infer
 module Std = Ofluxl_std
 module Syntax = Ofluxl_syntax
 module Types = Ofluxl_types
+module Partial = Ofluxl_partial.Partial

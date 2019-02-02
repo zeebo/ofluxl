@@ -61,7 +61,7 @@ value:
     | c = CHAR { Ast.Char c }
     | LEFT_BRACKET es = separated_trailing_list(COMMA, expr) RIGHT_BRACKET { Ast.List es }
     | LEFT_BRACE vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.Record vs }
-    | LEFT_BRACE e = expr WITH vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.With (e, vs) }
+    (* | LEFT_BRACE e = expr WITH vs = separated_trailing_list(COMMA, colon_arg) RIGHT_BRACE { Ast.With (e, vs) } *)
     ;
 
 binary:

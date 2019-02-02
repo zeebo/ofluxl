@@ -9,3 +9,9 @@
     (libraries ofluxl)
     (modules parse)
 )
+
+(executable
+    (name peval)
+    (libraries ofluxl)
+    (modules peval)
+)

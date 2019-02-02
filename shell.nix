@@ -6,8 +6,11 @@ with pkgs; mkShell {
 		ocaml
 		dune
 
+		inotify-tools
+
 		ocamlPackages.findlib
 		ocamlPackages.merlin
+		ocamlPackages.ocp-indent
 
 		ocamlPackages.ppx_jane
 		ocamlPackages.base
