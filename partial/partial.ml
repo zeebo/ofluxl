@@ -150,10 +150,7 @@ let rec peval_expr scope = function
     end
 
   | Func (args, body, ret) ->
-    let body = List.map body ~f:(function
-        | Ast.Assign (name, expr) -> Ast.Assign (name, peval_expr scope expr)
-        | Ast.Expr expr -> Ast.Expr (peval_expr scope expr))
-    in
+    let scope, body = peval_statements scope body in
     Func (args, body, peval_expr scope ret)
 
   | Call (func, args) ->
@@ -201,7 +198,7 @@ let rec peval_expr scope = function
           in
 
           (* evaluate the function body in the new scope *)
-          let scope' =
+          let scope', _ =
             peval_statements scope' body
           in
 
@@ -303,33 +300,21 @@ let rec peval_expr scope = function
       | left, right -> Or (left, right)
     end
 
-and peval_statements scope = function
-  | Ast.Assign (name, expr) :: tail ->
-    let expr = peval_expr scope expr in
-    let scope = Map.set scope ~key:name ~data:expr in
-    peval_statements scope tail
-
-  | Expr expr :: tail ->
-    let expr = peval_expr scope expr in
-    let scope = Map.set scope ~key:sym#next ~data:expr in
-    peval_statements scope tail
-
-  | [] ->
-    scope
+and peval_statements scope statements =
+  let scope, statements = List.fold statements
+      ~init:(scope, [])
+      ~f:(fun (scope, acc) -> function
+          | Ast.Assign (name, expr) ->
+            let expr = peval_expr scope expr in
+            let scope = Map.set scope ~key:name ~data:expr in
+            if fully_known (scope_keys scope) expr
+            then scope, acc
+            else scope, Ast.Assign (name, expr) :: acc
+          | Ast.Expr expr ->
+            let expr = peval_expr scope expr in
+            scope, Ast.Expr expr :: acc)
+  in
+  scope, List.rev statements
 
 and peval_program program =
-  program
-  |> List.fold
-    ~init:(Map.empty (module String), [])
-    ~f:(fun (scope, acc) -> function
-        | Ast.Assign (name, expr) ->
-          let expr = peval_expr scope expr in
-          let scope = Map.set scope ~key:name ~data:expr in
-          if fully_known (scope_keys scope) expr
-          then scope, acc
-          else scope, Ast.Assign (name, expr) :: acc
-        | Ast.Expr expr ->
-          let expr = peval_expr scope expr in
-          scope, Ast.Expr expr :: acc)
-  |> snd
-  |> List.rev
+  snd @@ peval_statements (Map.empty (module String)) program
