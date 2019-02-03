@@ -167,6 +167,7 @@ let rec peval_expr scope = function
         and required =
           List.filter_map params ~f:(function
               | name, None -> Some name
+              | name, Some Ast.DPipe -> Some name
               | _ -> None)
           |> Set.of_list (module String)
         in
