@@ -118,122 +118,88 @@ let rec peval_expr scope = function
   | String _ as expr ->
     expr
 
-  | Plus (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Integer l, Integer r -> Eval.add (module Eval.Integer) l r
-      | Float l, Float r -> Eval.add (module Eval.Float) l r
-      | String l, String r -> Eval.add (module Eval.String) l r
-      | left, right -> Plus (left, right)
+  | Plus (Integer l, Integer r) -> Eval.add (module Eval.Integer) l r
+  | Plus (Float l, Float r) -> Eval.add (module Eval.Float) l r
+  | Plus (String l, String r) -> Eval.add (module Eval.String) l r
+  | Plus (left, right) -> Plus (peval_expr scope left, peval_expr scope right)
+
+  | Minus (Integer l, Integer r) -> Eval.sub (module Eval.Integer) l r
+  | Minus (Float l, Float r) -> Eval.sub (module Eval.Float) l r
+  | Minus (left, right) -> Minus (peval_expr scope left, peval_expr scope right)
+
+  | Times (Integer l, Integer r) -> Eval.mul (module Eval.Integer) l r
+  | Times (Float l, Float r) -> Eval.mul (module Eval.Float) l r
+  | Times (left, right) -> Times (peval_expr scope left, peval_expr scope right)
+
+  | Div (Integer l, Integer r) -> Eval.div (module Eval.Integer) l r
+  | Div (Float l, Float r) -> Eval.div (module Eval.Float) l r
+  | Div (left, right) -> Div (peval_expr scope left, peval_expr scope right)
+
+  | Uminus (Integer expr) -> Eval.neg (module Eval.Integer) expr
+  | Uminus (Float expr) -> Eval.neg (module Eval.Float) expr
+  | Uminus expr -> Uminus (peval_expr scope expr)
+
+  | Func (params, body, ret) ->
+    Func (params, body, ret)
+
+  | Call (Func (params, body, ret) as func, args) ->
+    (* ensure we have all the arguments necessary for non-default values *)
+    let total = List.map params ~f:fst |> Set.of_list (module String)
+    and provided = List.map args ~f:fst |> Set.of_list (module String)
+    and required =
+      List.filter_map params ~f:(function
+          | name, None -> Some name
+          | name, Some Ast.DPipe -> Some name
+          | _ -> None)
+      |> Set.of_list (module String)
+    in
+
+    if not @@ Set.is_subset required ~of_:provided ||
+       not @@ Set.is_subset provided ~of_:total then
+      Call (func, args)
+    else
+
+      (* set the defaults into a new scope *)
+      let scope' =
+        List.fold params ~init:scope ~f:(fun scope' -> function
+            | name, Some (DExpr expr) ->
+              let expr = peval_expr scope expr in
+              Map.set scope' ~key:name ~data:expr
+            | _ -> scope')
+      in
+
+      (* set the called arguments in that scope *)
+      let scope' =
+        List.fold args ~init:scope' ~f:(fun scope' (name, expr) ->
+            let expr = peval_expr scope expr in
+            Map.set scope' ~key:name ~data:expr)
+      in
+
+      (* evaluate the function body in the new scope *)
+      let scope', _ =
+        peval_statements scope' (Set.empty (module String)) body
+      in
+
+      (* evaluate the return value in the context of that scope *)
+      (* we must fully evaluate it because it's in a different scope *)
+      peval_fully_expr scope' ret
+
+  | Call (expr, args) ->
+    Call (peval_expr scope expr, args)
+
+  | Pipe (left, Call (Func (params, _, _) as func, args)) as expr ->
+    let is_pipe (_, def) = match def with | Some Ast.DPipe -> true | _ -> false in
+    begin match List.find params ~f:is_pipe with
+      | Some (name, _) ->
+        Ast.Call (func, List.Assoc.add args ~equal:String.equal name left)
+      | _ -> expr
     end
 
-  | Minus (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Integer l, Integer r -> Eval.sub (module Eval.Integer) l r
-      | Float l, Float r -> Eval.sub (module Eval.Float) l r
-      | left, right -> Minus (left, right)
-    end
-
-  | Times (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Integer l, Integer r -> Eval.mul (module Eval.Integer) l r
-      | Float l, Float r -> Eval.mul (module Eval.Float) l r
-      | left, right -> Times (left, right)
-    end
-
-  | Div (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Integer l, Integer r -> Eval.div (module Eval.Integer) l r
-      | Float l, Float r -> Eval.div (module Eval.Float) l r
-      | left, right -> Div (left, right)
-    end
-
-  | Uminus expr ->
-    begin match peval_expr scope expr with
-      | Integer v -> Eval.neg (module Eval.Integer) v
-      | Float v -> Eval.neg (module Eval.Float) v
-      | expr -> Uminus expr
-    end
-
-  | Func (args, body, ret) ->
-    (* don't evaluate functions until they are called *)
-    Func (args, body, ret)
-
-  | Call (func, args) ->
-    begin match peval_expr scope func with
-      | Func (params, body, ret) as func ->
-        (* ensure we have all the arguments necessary for non-default values *)
-        let total = List.map params ~f:fst |> Set.of_list (module String)
-        and provided = List.map args ~f:fst |> Set.of_list (module String)
-        and required =
-          List.filter_map params ~f:(function
-              | name, None -> Some name
-              | name, Some Ast.DPipe -> Some name
-              | _ -> None)
-          |> Set.of_list (module String)
-        in
-
-        if not @@ Set.is_subset required ~of_:provided ||
-           not @@ Set.is_subset provided ~of_:total then
-          Call (func, args)
-        else
-
-          (* set the defaults into a new scope *)
-          let scope' =
-            List.fold params ~init:scope ~f:(fun scope' -> function
-                | name, Some (DExpr expr) ->
-                  let expr = peval_expr scope expr in
-                  Map.set scope' ~key:name ~data:expr
-                | _ -> scope')
-          in
-
-          (* set the called arguments in that scope *)
-          let scope' =
-            List.fold args ~init:scope' ~f:(fun scope' (name, expr) ->
-                let expr = peval_expr scope expr in
-                Map.set scope' ~key:name ~data:expr)
-          in
-
-          (* evaluate the function body in the new scope *)
-          let scope', _ =
-            peval_statements scope' (Set.empty (module String)) body
-          in
-
-          (* evaluate the return value in the context of that scope *)
-          peval_expr scope' ret
-
-      | func -> Call (func, args)
-    end
+  | Pipe (left, Call (right, args)) ->
+    Pipe (left, Call (peval_expr scope right, args))
 
   | Pipe (left, right) ->
-    begin match peval_expr scope left, right with
-      (* we pipe only directly into a call expression *)
-      | lexpr, Call (rexpr, rargs) ->
-
-        (* evaluate the callee and arguments fully *)
-        let rexpr = peval_expr scope rexpr
-        and rargs = List.map rargs ~f:(fun (name, expr) -> (name, peval_expr scope expr))
-        in
-
-        (* the right must now have resolved to a function *)
-        begin match rexpr with
-          | Func (params, _, _) ->
-            let is_pipe (_, def) = match def with | Some Ast.DPipe -> true | _ -> false in
-            begin match List.find params ~f:is_pipe with
-              (* if there is an argument named for the pipe, then transform this pipe into
-               * a call of the right hand side with the left hand side for the pipe
-              *)
-              | Some (name, _) ->
-                let expr = Ast.Call (rexpr, List.Assoc.add rargs ~equal:String.equal name lexpr) in
-                peval_expr scope expr
-
-              | _ -> Pipe (lexpr, Call (rexpr, rargs))
-            end
-
-          | _ -> Pipe (lexpr, Call (rexpr, rargs))
-        end
-
-      | left, right -> Pipe (left, right)
-    end
+    Pipe (left, peval_expr scope right)
 
   | List exprs ->
     List (List.map exprs ~f:(peval_expr scope))
@@ -241,31 +207,35 @@ let rec peval_expr scope = function
   | Record fields ->
     Record (List.map fields ~f:(fun (name, expr) -> (name, peval_expr scope expr)))
 
-  | Select (expr, field) ->
-    begin match peval_expr scope expr with
-      | Record fields as expr ->
-        begin match List.Assoc.find fields ~equal:String.equal field with
-          | Some expr -> peval_expr scope expr
-          | None -> Select (expr, field)
-        end
-      | expr -> Select (expr, field)
+  | Select (Record fields, field) ->
+    begin match List.Assoc.find fields ~equal:String.equal field with
+      | Some expr -> peval_expr scope expr
+      | None -> Select (Record fields, field)
     end
+
+  | Select (expr, field) ->
+    Select (peval_expr scope expr, field)
+
+  | Index (List exprs, Integer n) as expr ->
+    begin match List.nth exprs (Int.of_string n) with
+      | Some expr -> peval_expr scope expr
+      | None -> expr
+    end
+
+  | Index (List exprs, index) ->
+    Index (List exprs, peval_expr scope index)
+
+  | Index (Record fields, String field) as expr ->
+    begin match List.Assoc.find fields ~equal:String.equal field with
+      | Some expr -> peval_expr scope expr
+      | None -> expr
+    end
+
+  | Index (Record fields, index) ->
+    Index (Record fields, peval_expr scope index)
 
   | Index (expr, index) ->
-    begin match peval_expr scope expr, peval_expr scope index with
-      | List exprs as expr, (Integer n as index) ->
-        begin match List.nth exprs (Int.of_string n) with
-          | Some expr -> peval_expr scope expr
-          | None -> Index (expr, index)
-        end
-
-      | Record fields as expr, (String field as index) ->
-        begin match List.Assoc.find fields ~equal:String.equal field with
-          | Some expr -> peval_expr scope expr
-          | None -> Index (expr, index)
-        end
-      | expr, index -> Index (expr, index)
-    end
+    Index (peval_expr scope expr, index)
 
   | Comp (left, cmp, right) as expr ->
     let fn = match cmp with
@@ -277,44 +247,47 @@ let rec peval_expr scope = function
       | ">=" -> Eval.geq
       | _ -> fun (module E: Eval.Cmp) _ _ -> expr
     in
-    begin match peval_expr scope left, peval_expr scope right with
+    begin match left, right with
       | Integer l, Integer r -> fn (module Eval.Integer) l r
       | Float l, Float r -> fn (module Eval.Float) l r
       | String l, String r -> fn (module Eval.String) l r
-      | left, right -> Comp (left, cmp, right)
+      | left, right -> Comp (peval_expr scope left, cmp, peval_expr scope right)
     end
 
-  | And (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Bool l, Bool r -> Bool (l && r)
-      | left, right -> And (left, right)
-    end
+  | And (Bool l, Bool r) -> Bool (l && r)
+  | And (left, right) -> And (peval_expr scope left, peval_expr scope right)
 
-  | Or (left, right) ->
-    begin match peval_expr scope left, peval_expr scope right with
-      | Bool l, Bool r -> Bool (l && r)
-      | left, right -> Or (left, right)
-    end
+  | Or (Bool l, Bool r) -> Bool (l || r)
+  | Or (left, right) -> Or (peval_expr scope left, peval_expr scope right)
 
   | Ternary (cond, left, right) ->
     begin match peval_expr scope cond with
-      | Bool true -> peval_expr scope left
-      | Bool false -> peval_expr scope right
+      | Bool true -> left
+      | Bool false -> right
       | cond -> Ternary (cond, left, right)
     end
+
+and peval_fully_expr scope expr =
+  let prev = ref expr in
+  let out = ref (peval_expr scope expr) in
+  while Ast.compare_expr !prev !out <> 0 do
+    prev := !out;
+    out := peval_expr scope !out;
+  done;
+  !out
 
 and peval_statements scope known statements =
   let scope, statements = List.fold statements
       ~init:(scope, [])
       ~f:(fun (scope, acc) -> function
           | Ast.Assign (name, expr) ->
-            let expr = peval_expr scope expr in
+            let expr = peval_fully_expr scope expr in
             let scope = Map.set scope ~key:name ~data:expr in
             if fully_known (Set.union known @@ scope_keys scope) expr
             then scope, acc
             else scope, Ast.Assign (name, expr) :: acc
           | Ast.Expr expr ->
-            let expr = peval_expr scope expr in
+            let expr = peval_fully_expr scope expr in
             scope, Ast.Expr expr :: acc)
   in
   scope, List.rev statements
