@@ -5,10 +5,10 @@ open Ofluxl_std
 let make_tracker () = object
   val mutable lines = []
 
-  method add line = 
+  method add line =
     lines <- line :: lines
 
-  method finish = 
+  method finish =
     List.rev lines
     |> String.concat ~sep:"\n"
 end
@@ -21,8 +21,8 @@ let counter = object
     counter
 end
 
-type table = 
-  { group: string list 
+type table =
+  { group: string list
   ; columns: string list
   ; index: int
   }
@@ -60,11 +60,11 @@ let with_join left right on =
     Set.diff left_columns on
     |> Set.map (module String) ~f:(fun col -> col ^ "_left")
   in
-  let right_rem = 
+  let right_rem =
     Set.diff right_columns on
     |> Set.map (module String) ~f:(fun col -> col ^ "_right")
   in
-  let left_group = 
+  let left_group =
     List.map left.group ~f:(fun name ->
         if Set.mem on name then name else name ^ "_left")
     |> to_set
@@ -84,7 +84,7 @@ let type_name_of {index; _} =
 
 let type_def_of table =
   (* AHH *)
-  let fields = 
+  let fields =
     table.columns
     |> List.map ~f:(fun col -> sprintf "%s: f64" col)
     |> String.concat ~sep:", "

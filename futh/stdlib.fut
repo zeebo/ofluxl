@@ -63,7 +63,7 @@ let stdlib_product join a b =
     let op i j = unsafe (join a[i] b[j]) in
     flatten (tabulate_2d (length a) (length b) op)
 
-let stdlib_groups 't (eq: t -> t -> bool) (values: []t): []i32 = 
+let stdlib_groups 't (eq: t -> t -> bool) (values: []t): []i32 =
     iota (length values)
     |> map (\i -> if i == 0 || (eq values[i-1] values[i]) then 0 else 1)
     |> scan (+) 0i32

@@ -11,22 +11,16 @@ let ctx = object
   val mutable table = root
   val mutable tables = [root]
   val mutable genned = []
-
   method table = table
-
   method set_table (tab: table) =
-    if List.fold (List.map tables ~f:(fun t -> t.index = tab.index)) 
-        ~init:false 
+    if List.fold (List.map tables ~f:(fun t -> t.index = tab.index))
+        ~init:false
         ~f:(fun a b -> a || b)
     then ()
     else tables <- tab :: tables;
-
     table <- tab
-
   method tables = tables
-
   method add_gen str = genned <- str :: genned
-
   method genned = genned
 end
 
@@ -39,7 +33,7 @@ let generate_agg table column op =
   t#add @@ sprintf "\trs[0] with %s = combined" column;
   name, t#finish
 
-let generate_sum table column = 
+let generate_sum table column =
   let eq_name, code = generate_equal table in
   ctx#add_gen code;
   let agg_name, code = generate_agg table column "f64.sum" in
@@ -48,7 +42,7 @@ let generate_sum table column =
 
 let args_helper = function
   | [] -> ["()"]
-  | x -> x 
+  | x -> x
 
 let rec string_of_statement s =
   begin match s with
@@ -67,29 +61,29 @@ and string_of_expr e =
   | Times (l, r) -> sprintf "((%s) * (%s))" (string_of_expr l) (string_of_expr r)
   | Div (l, r) -> sprintf "((%s) / (%s))" (string_of_expr l) (string_of_expr r)
   | Uminus e -> sprintf "(-(%s))" (string_of_expr e)
-  | Pipe (l, r) -> 
+  | Pipe (l, r) ->
     let ls = (string_of_expr l) in
     let rs = (string_of_expr r) in
     sprintf "((%s) |> (%s))" ls rs
   | List es -> sprintf "[%s]" (String.concat ~sep:", " (List.map es ~f:string_of_expr))
-  | Record re -> sprintf "{%s}" (String.concat ~sep:", " (List.map re ~f:(fun (name, e) -> sprintf "%s = %s" name (string_of_expr e))))
+  | Record re -> sprintf "{%s}" (String.concat ~sep:", "
+    (List.map re ~f:(fun (name, e) -> sprintf "%s = %s" name (string_of_expr e))))
   | Select (e, f) -> sprintf "(%s).%s" (string_of_expr e) f
   | Index (e, i) -> sprintf "((%s)[%s])" (string_of_expr e) (string_of_expr i)
   | Comp (l, c, r) -> sprintf "((%s) %s (%s))" (string_of_expr l) c (string_of_expr r)
   | And (l, r) -> sprintf "((%s) && (%s))" (string_of_expr l) (string_of_expr r)
   | Or (l, r) -> sprintf "((%s) || (%s))" (string_of_expr l) (string_of_expr r)
-  | Return e -> string_of_expr e
   | Func (args, body, ret) ->
     let args =
-      args 
+      args
       |> List.map ~f:(fun (name, def) -> match def with
           | Some Ast.DPipe -> name
           | Some _ -> throw @@ InvalidExpr e
           | None -> name)
-      |> List.sort ~compare:String.compare 
+      |> List.sort ~compare:String.compare
       |> args_helper
       |> String.concat ~sep:" "
-    and body = 
+    and body =
       body
       |> List.map ~f:string_of_statement
       |> String.concat ~sep:""
@@ -128,8 +122,8 @@ and string_of_expr e =
     generate_sum ctx#table column
 
   | Call (e, args) ->
-    let args = 
-      args 
+    let args =
+      args
       |> List.sort ~compare:(fun (n1, _) (n2, _) -> String.compare n1 n2)
       |> List.map ~f:(fun (_, e) -> string_of_expr e)
       |> args_helper
@@ -152,7 +146,7 @@ import "stdlib"
     List.iter ctx#genned ~f:print_endline;
 
     print_endline {|
-let main a b c d =
+let main a b c d = unsafe
   let table = map4 (\a b c d -> {a, b, c, d}) a b c d in
 |};
 
