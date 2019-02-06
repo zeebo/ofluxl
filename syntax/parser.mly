@@ -1,5 +1,5 @@
 %token SEMICOLON
-%token DOT COMMA COLON PIPE PIPE_ARROW RIGHT_PAREN_ARROW
+%token DOT COMMA COLON PIPE PIPE_ARROW RIGHT_PAREN_ARROW QUESTION
 %token LEFT_PAREN RIGHT_PAREN
 %token LEFT_BRACKET RIGHT_BRACKET
 %token LEFT_BRACE RIGHT_BRACE
@@ -11,6 +11,7 @@
 %token EOF
 
 %nonassoc highest
+%left QUESTION COLON
 %left PLUS MINUS
 %left TIMES DIV
 %left AND OR
@@ -75,6 +76,10 @@ binary:
     | e1 = expr OR e2 = expr { Ast.Or (e1, e2) }
     ;
 
+ternary:
+    | e1 = expr QUESTION e2 = expr COLON e3 = expr { Ast.Ternary (e1, e2, e3) }
+    ;
+
 access:
     | e = expr DOT i = IDENT { Ast.Select (e, i) }
     | e = expr LEFT_BRACKET i = expr RIGHT_BRACKET { Ast.Index (e, i) }
@@ -85,12 +90,13 @@ group:
     ;
 
 expr:
-    | l = lambda { l }
-    | c = call   { c }
-    | v = value  { v }
-    | b = binary { b }
-    | a = access { a }
-    | g = group  { g }
+    | l = lambda  { l }
+    | c = call    { c }
+    | v = value   { v }
+    | b = binary  { b }
+    | t = ternary { t }
+    | a = access  { a }
+    | g = group   { g }
     ;
 
 colon_arg:

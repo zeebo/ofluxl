@@ -96,6 +96,11 @@ let rec fully_known scope = function
     fully_known scope left
     && fully_known scope right
 
+  | Ternary (cond, left, right) ->
+    fully_known scope cond
+    && fully_known scope left
+    && fully_known scope right
+
 let rec peval_expr scope = function
   | Ast.Ident name as expr ->
     begin match Map.find scope name with
@@ -150,15 +155,10 @@ let rec peval_expr scope = function
     end
 
   | Func (args, body, ret) ->
-    let known = List.map args ~f:fst |> Set.of_list (module String) in
-    let scope, body = peval_statements scope known body in
-    Func (args, body, peval_expr scope ret)
+    (* don't evaluate functions until they are called *)
+    Func (args, body, ret)
 
   | Call (func, args) ->
-    let args = List.map args ~f:(fun (name, expr) ->
-        name, peval_expr scope expr)
-    in
-
     begin match peval_expr scope func with
       | Func (params, body, ret) as func ->
         (* ensure we have all the arguments necessary for non-default values *)
@@ -294,6 +294,13 @@ let rec peval_expr scope = function
     begin match peval_expr scope left, peval_expr scope right with
       | Bool l, Bool r -> Bool (l && r)
       | left, right -> Or (left, right)
+    end
+
+  | Ternary (cond, left, right) ->
+    begin match peval_expr scope cond with
+      | Bool true -> peval_expr scope left
+      | Bool false -> peval_expr scope right
+      | cond -> Ternary (cond, left, right)
     end
 
 and peval_statements scope known statements =

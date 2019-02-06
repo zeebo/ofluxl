@@ -155,6 +155,19 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
     ctx#kind_constraint typr @@ Cls Cmp;
     Basic Bool
 
+  (*
+   * ternary
+   *)
+  | Ternary (cond, left, right) ->
+    let typ = ctx#fresh_variable in
+    let typc = generate ctx cond in
+    let typl = generate ctx left in
+    let typr = generate ctx right in
+    ctx#typ_constraint typ typl;
+    ctx#typ_constraint typ typr;
+    ctx#typ_constraint typc @@ Basic Bool;
+    typ
+
 (*
  * helpers
  *)

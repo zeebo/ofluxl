@@ -100,6 +100,7 @@ rule token = parse
     | '}'  { emit RIGHT_BRACE }
     | '='  { emit EQUAL }
     | ':'  { emit COLON }
+    | '?'  { emit QUESTION }
 
     (* regex/division support *)
     | '/' { if not !can_regex then emit DIV else

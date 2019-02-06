@@ -32,6 +32,7 @@ type expr =
   | Comp of expr * string * expr
   | And of expr * expr
   | Or of expr * expr
+  | Ternary of expr * expr * expr
 
 and default =
   | DExpr of expr
@@ -40,7 +41,7 @@ and default =
 and statement =
   | Assign of string * expr
   | Expr of expr
-[@@deriving sexp_of]
+[@@deriving sexp_of, compare]
 
 type program = statement list
 [@@deriving sexp_of]
