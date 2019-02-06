@@ -44,6 +44,7 @@ let rec expr_to_string = function
   | Comp (left, cmp, right) -> sprintf "((%s) %s (%s))" (expr_to_string left) cmp (expr_to_string right)
   | And (left, right) -> sprintf "((%s) && (%s))" (expr_to_string left) (expr_to_string right)
   | Or (left, right) -> sprintf "((%s) || (%s))" (expr_to_string left) (expr_to_string right)
+  | Ternary (cond, left, right) -> sprintf "((%s) ? (%s) : (%s))" (expr_to_string cond) (expr_to_string left) (expr_to_string right)
   | Func (params, body, ret) ->
     build (fun t ->
         t#add @@ sprintf "(%s) => {" (make_params params);
