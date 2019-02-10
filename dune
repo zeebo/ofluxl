@@ -6,5 +6,7 @@
         ofluxl_syntax
         ofluxl_types
         ofluxl_partial
+        ofluxl_debruijn
+        ofluxl_cps
     )
 )

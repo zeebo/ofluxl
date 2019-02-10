@@ -6,8 +6,10 @@ with pkgs; mkShell {
 		ocaml
 		dune
 
+		ncurses
 		inotify-tools
 
+		ocamlPackages.utop
 		ocamlPackages.findlib
 		ocamlPackages.merlin
 		ocamlPackages.ocp-indent
