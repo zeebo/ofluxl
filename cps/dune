@@ -1,5 +1,5 @@
 (library
     (name ofluxl_cps)
     (preprocess (pps ppx_jane))
-    (libraries ofluxl_std)
+    (libraries ofluxl_std ofluxl_syntax)
 )

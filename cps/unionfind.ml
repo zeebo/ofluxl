@@ -54,5 +54,3 @@ end = struct
   let same x y =
     (find x).id = (find y).id
 end
-
-include Make ()

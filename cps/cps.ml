@@ -12,7 +12,7 @@ type ctm =
   | Halt of Var.t
 
 and cval =
-  | Void
+  | Prim of Prim.t
   | Tuple of Var.t list
   | Tag of Tag.t * Var.t
   | Lam of Cont.t * Var.t * ctm
@@ -29,7 +29,7 @@ let rec ctm_to_string = function
   | Halt x -> sprintf "halt %s" (Var.to_string x)
 
 and cval_to_string = function
-  | Void -> "()"
+  | Prim p -> Prim.to_string p
   | Tuple xs -> sprintf "(%s)" (List.map xs ~f:(fun x -> sprintf "%s" (Var.to_string x)) |> String.concat ~sep:", ")
   | Tag (t, x) -> sprintf "%s %s" (Tag.to_string t) (Var.to_string x)
   | Lam (k, x, k') -> sprintf "λ %s %s . (%s)" (Cont.to_string k) (Var.to_string x) (ctm_to_string k')

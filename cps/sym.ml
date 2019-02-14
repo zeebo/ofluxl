@@ -1,22 +1,26 @@
 open Ofluxl_std
 
-module Make () : sig
+module Make (K: sig val kind : string end) () : sig
+  (* can be used as map keys *)
+  type comparator_witness
   type t
+
   val to_string : t -> string
   val fresh : unit -> t
   val eq : t -> t -> bool
 end = struct
-  let ctr = ref 0
-
+  type comparator_witness
   type t = string
 
-  let to_string x = x
+  let ctr = ref 0
+
+  let to_string x =
+    x
 
   let fresh () =
     ctr := !ctr + 1;
-    "sym" ^ Int.to_string !ctr
+    K.kind ^ "_sym" ^ Int.to_string !ctr
 
-  let eq x y = String.equal x y
+  let eq x y =
+    String.equal x y
 end
-
-include Make ()
