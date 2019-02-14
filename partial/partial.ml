@@ -40,14 +40,14 @@ let rec fully_known scope = function
 
   | Func (args, body, ret) ->
     let rec helper scope = function
-      | Ast.Assign (name, expr) :: tail ->
+      | (Some name, expr) :: tail ->
         if fully_known scope expr then
           let scope = Set.add scope name in
           helper scope tail
         else
           scope, false
 
-      | Expr expr :: tail ->
+      | (None, expr) :: tail ->
         if fully_known scope expr then
           let scope, tail_known = helper scope tail in
           scope, tail_known
@@ -280,15 +280,15 @@ and peval_statements scope known statements =
   let scope, statements = List.fold statements
       ~init:(scope, [])
       ~f:(fun (scope, acc) -> function
-          | Ast.Assign (name, expr) ->
+          | (Some name, expr) ->
             let expr = peval_fully_expr scope expr in
             let scope = Map.set scope ~key:name ~data:expr in
             if fully_known (Set.union known @@ scope_keys scope) expr
             then scope, acc
-            else scope, Ast.Assign (name, expr) :: acc
-          | Ast.Expr expr ->
+            else scope, (Some name, expr) :: acc
+          | (None, expr) ->
             let expr = peval_fully_expr scope expr in
-            scope, Ast.Expr expr :: acc)
+            scope, (None, expr) :: acc)
   in
   scope, List.rev statements
 

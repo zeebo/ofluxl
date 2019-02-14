@@ -2,7 +2,6 @@ open Err
 
 open Ofluxl_std
 open Ofluxl_types
-open Ofluxl_syntax
 
 let solve_exn program =
   let names = object
@@ -16,10 +15,10 @@ let solve_exn program =
 
   (* first generate all of the initial constraints from the syntax *)
   List.iter program ~f:(function
-      | Ast.Expr expr ->
+      | None, expr ->
         let typ = Generate.generate ctx expr in
         ctx#insert names#fresh (Scheme.empty typ)
-      | Ast.Assign (ident, expr) ->
+      | Some ident, expr ->
         let typ = Generate.generate ctx expr in
         ctx#insert ident (ctx#generalize typ));
 

@@ -65,8 +65,8 @@ let rec generate (ctx: Context.t): expr -> Type.t = function
     let entries = Map.map args ~f:Scheme.empty in
     let ret = ctx#scope entries (fun ctx ->
         List.iter body ~f:(function
-            | Expr expr -> ignore (generate ctx expr)
-            | Assign (ident, expr) ->
+            | None, expr -> ignore (generate ctx expr)
+            | Some ident, expr ->
               let typ = generate ctx expr in
               ctx#insert ident (ctx#generalize typ));
         generate ctx ret
