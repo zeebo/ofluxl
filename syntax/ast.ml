@@ -38,9 +38,7 @@ and default =
   | DExpr of expr
   | DPipe
 
-and statement =
-  | Assign of string * expr
-  | Expr of expr
+and statement = string option * expr
 [@@deriving sexp_of, compare]
 
 type program = statement list

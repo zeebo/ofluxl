@@ -38,8 +38,8 @@ program:
     ;
 
 statement:
-    | i = IDENT EQUAL e = expr { Ast.Assign (i, e) }
-    | e = expr { Ast.Expr e }
+    | i = IDENT EQUAL e = expr { (Some i, e) }
+    | e = expr { (None, e) }
     ;
 
 lambda:

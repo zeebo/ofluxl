@@ -8,5 +8,6 @@
         ofluxl_partial
         ofluxl_debruijn
         ofluxl_cps
+        ofluxl_infer2
     )
 )

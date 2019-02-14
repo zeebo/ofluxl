@@ -1,0 +1,51 @@
+A Polymorphic Record Calculus and Its Compilation
+    http://www.riec.tohoku.ac.jp/~ohori/research/toplas95.pdf
+
+A Label-Selective Lambda-Calculus with Optional Arguments and its Compilation Method
+    http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.437.3722&rep=rep1&type=pdf
+
+Labeled and optional arguments for Objective Caml
+    http://caml.inria.fr/pub/papers/garrigue-labels-ppl01.pdf
+
+Compiling with Continuations, Continued
+    https://www.microsoft.com/en-us/research/wp-content/uploads/2007/10/compilingwithcontinuationscontinued.pdf
+
+Continuation-Based Partial Evaluation without Continuations
+    ???
+
+l-lang
+    https://github.com/mlemerre/l-lang
+
+Compiling with Continuations and LLVM
+    https://arxiv.org/pdf/1805.08842.pdf
+
+Simple Type Inference for Structural Polymorphism
+    http://caml.inria.fr/pub/papers/garrigue-structural_poly-fool02.pdf
+
+    Records encoded with kind environment containing constraints.
+
+A Polymorphic Type System For Extensible Records and Variants
+    http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.117.1572&rep=rep1&type=pdf
+
+Extensible records with scoped labels
+    http://www.cs.ioc.ee/tfp-icfp-gpce05/tfp-proc/21num.pdf
+
+    allow a label to be present multiple times.
+
+Abstracting Extensible Data Types
+    http://delivery.acm.org/10.1145/3300000/3290325/popl19main-p140-p.pdf
+
+    defines an algebra to abstract over record systems and shows homomorphisms
+    between them to get an idea of "expressive power." seems very complicated
+    but maybe the specific details for their programming language make sense.
+
+A calculus of tagged types, with applications to process languages
+    ???
+
+Type Inference for Records in a Natrual Extension of ML
+    https://hal.inria.fr/inria-00075129/document
+
+    records are typed as sets of <flag>.<type> where flag is abs|pre and type is
+    some type. doesn't handle some cases well like [{a:1, b:2}, {a:"hi", b:3}][0].b
+    maybe we can add a void flag so that it unifies to {a:void.t, b:pre.int, abs}
+    can definitely cause weirdness in unification.
